@@ -435,6 +435,7 @@ function TransactionReceiptDialog({
             box-sizing: border-box;
             color: #000000 !important; /* WAJIB HITAM PEKAT agar jelas di printer Dot Matrix */
             font-family: Arial, Helvetica, sans-serif !important; /* Font standar sistem lebih tajam di dot matrix */
+            font-weight: bold !important; /* Semua teks ditebalkan */
           }
           body {
             font-size: 11px;
