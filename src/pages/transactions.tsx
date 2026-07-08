@@ -239,7 +239,7 @@ function TransactionReceiptDialog({
       returnDate = `${dateStr} ,${timeStr}`;
     }
 
-    const getInvoiceContentHtml = (copyLabel: string) => {
+    const getInvoiceContentHtml = () => {
       return `
         <div class="invoice-copy">
           <div>
@@ -261,8 +261,7 @@ function TransactionReceiptDialog({
                 </td>
                 <td style="width: 40%; text-align: right; vertical-align: top;">
                   <h1 class="invoice-title">FAKTUR PENJUALAN</h1>
-                  <div style="font-size: 10px; font-weight: 700; color: #475569; margin-top: 4px; display: inline-flex; gap: 6px; justify-content: flex-end; align-items: center; width: 100%;">
-                    <span class="invoice-copy-badge">${copyLabel}</span>
+                  <div style="font-size: 10px; font-weight: 700; margin-top: 4px; display: inline-flex; gap: 6px; justify-content: flex-end; align-items: center; width: 100%;">
                     <span class="invoice-status-badge ${trx.payment_status === 'paid' ? 'badge-completed' : 'badge-pending'}">${trx.payment_status === 'paid' ? 'LUNAS' : trx.payment_status === 'partial' ? 'CICILAN' : 'TEMPO'}</span>
                   </div>
                 </td>
@@ -422,49 +421,40 @@ function TransactionReceiptDialog({
       <html>
       <head>
         <title>Faktur Penjualan - ${formatInvoiceNumber(trx.id)}</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
         <style>
           @page {
-            size: A4 portrait;
+            size: auto; /* Biarkan driver printer continuous yang menentukan ukuran */
             margin: 0mm;
           }
           @media print {
-            body { margin: 0; padding: 8mm 10mm; }
+            body { margin: 0; padding: 5mm 8mm; }
             .no-print { display: none !important; }
-            .invoice-copy { border: 1px solid transparent !important; }
+            .invoice-copy { border: none !important; } /* Hilangkan border putus-putus luar */
           }
           * {
             box-sizing: border-box;
-            font-weight: 800 !important;
-            color: #000000 !important; /* Membuat hitam pekat untuk cetak mesin */
+            color: #000000 !important; /* WAJIB HITAM PEKAT agar jelas di printer Dot Matrix */
+            font-family: Arial, Helvetica, sans-serif !important; /* Font standar sistem lebih tajam di dot matrix */
           }
           body {
-            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-            font-size: 10px;
-            font-weight: 800;
+            font-size: 11px;
+            font-weight: 600;
             line-height: 1.35;
             margin: 0;
-            padding: 8mm 10mm;
-            color: #000000;
+            padding: 5mm 8mm;
             background-color: #ffffff;
           }
           .print-wrapper {
             display: flex;
             flex-direction: column;
-            height: 270mm;
-            justify-content: space-between;
           }
           .invoice-copy {
-            height: 129mm;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             overflow: hidden;
-            border: 1px dashed #cbd5e1;
-            padding: 10px;
-            border-radius: 6px;
+            border: none; /* Tanpa border luar agar tidak terpotong tepi kertas */
+            padding: 0;
             background-color: #ffffff;
           }
           .cut-divider {
@@ -568,24 +558,22 @@ function TransactionReceiptDialog({
             margin-bottom: 8px;
           }
           .items-table th {
-            background-color: #f8fafc;
-            color: #475569;
-            font-size: 8.5px;
-            font-weight: 700;
+            color: #000000 !important;
+            font-size: 10px;
+            font-weight: bold;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
             padding: 4px 6px;
-            border-bottom: 1.5px solid #0f172a;
-            border-top: 1px solid #e2e8f0;
+            border-bottom: 1.5px solid #000000;
+            border-top: 1.5px solid #000000;
           }
           .items-table td {
             padding: 4px 6px;
-            font-size: 10px;
-            border-bottom: 1px dashed #e2e8f0;
-            color: #0f172a;
+            font-size: 11px;
+            border-bottom: 1px dashed #000000;
+            color: #000000 !important;
           }
           .items-table tr:last-child td {
-            border-bottom: 1px solid #0f172a;
+            border-bottom: 1.5px solid #000000;
           }
           .items-table tr.empty-row td {
             height: 15px;
@@ -653,13 +641,7 @@ function TransactionReceiptDialog({
       </head>
       <body>
         <div class="print-wrapper">
-          ${getInvoiceContentHtml('SALINAN PELANGGAN')}
-          
-          <div class="cut-divider">
-            <span>Gunting di sini untuk memotong dokumen</span>
-          </div>
-          
-          ${getInvoiceContentHtml('SALINAN TOKO')}
+          ${getInvoiceContentHtml()}
         </div>
 
         <script>
