@@ -868,7 +868,7 @@ export default function SettingsPage() {
                     <p className="text-sm text-slate-500 dark:text-slate-400">Point of Sale System</p>
                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Versi {APP_VERSION}</p>
                   </div>
-                  <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center p-2 animate-logo-ring">
+                  <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center p-2 animate-logo-ring">
                     <img
                       src={`${import.meta.env.BASE_URL}CV.AULIA.png`}
                       alt="Logo"

@@ -437,14 +437,17 @@ function TransactionReceiptDialog({
           }
           * {
             box-sizing: border-box;
+            font-weight: 800 !important;
+            color: #000000 !important; /* Membuat hitam pekat untuk cetak mesin */
           }
           body {
             font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
             font-size: 10px;
+            font-weight: 800;
             line-height: 1.35;
             margin: 0;
             padding: 8mm 10mm;
-            color: #1e293b;
+            color: #000000;
             background-color: #ffffff;
           }
           .print-wrapper {

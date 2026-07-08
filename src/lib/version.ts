@@ -1,9 +1,9 @@
-export const APP_VERSION = '1.0.7';
+export const APP_VERSION = '1.0.10';
 
 export const RELEASE_CHANGELOG = [
-  "Fitur Download aplikasi di Form Login",
-  "Pembaruan Upadate Apps",
-  "Fitur tombol keluar aplikasi 2x"
+  "Fitur Download Satuan/Diskon & Stok Gudang",
+  "Fitur Download Laporan Supllier",
+  "Perbaikan Semua Cetak Faktur Agar Lebih Jelas"
 ];
 
 export interface UpdateInfo {

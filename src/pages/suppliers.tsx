@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import * as XLSX from "xlsx-js-style";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { 
   useListProducts, 
@@ -676,14 +677,17 @@ export default function SuppliersPage() {
           }
           * {
             box-sizing: border-box;
+            font-weight: 800 !important;
+            color: #000000 !important;
           }
           body {
             font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
             font-size: 10px;
+            font-weight: 800;
             line-height: 1.35;
             margin: 0;
             padding: 8mm 10mm;
-            color: #1e293b;
+            color: #000000;
             background-color: #ffffff;
           }
           .print-wrapper {
@@ -1203,6 +1207,147 @@ export default function SuppliersPage() {
   const animatedTotalTransaksi = useCountUp(totalTransaksiCount, { duration: 1000 });
   const animatedTotalRefund = useCountUp(totalRefundAmount, { duration: 1600 });
 
+  const handleExportExcel = () => {
+    if (!displayedData || displayedData.length === 0) {
+      toast({ title: "Error", description: "Tidak ada data transaksi untuk diekspor", variant: "destructive" });
+      return;
+    }
+
+    const excelData = displayedData.map((trx: any) => ({
+      "No Faktur": trx.id,
+      "Tanggal": new Date(trx.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+      "Suplier": trx.supplierName,
+      "Jumlah Item": trx.items || 0,
+      "Total Pembelian (Rp)": trx.totalAmount || 0,
+      "Status": trx.status,
+      "Metode Bayar": trx.paymentMethod || '-'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    
+    const colWidths = [
+      { wch: 25 }, // No Faktur
+      { wch: 15 }, // Tanggal
+      { wch: 35 }, // Suplier
+      { wch: 15 }, // Jumlah Item
+      { wch: 25 }, // Total Pembelian (Rp)
+      { wch: 15 }, // Status
+      { wch: 20 }, // Metode Bayar
+    ];
+    worksheet['!cols'] = colWidths;
+
+    const range = XLSX.utils.decode_range(worksheet['!ref'] || "A1:G1");
+    
+    const alignments = [
+      "left",   // 0: No Faktur
+      "center", // 1: Tanggal
+      "left",   // 2: Suplier
+      "center", // 3: Jumlah Item
+      "right",  // 4: Total Pembelian
+      "center", // 5: Status
+      "center"  // 6: Metode Bayar
+    ];
+
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const address = XLSX.utils.encode_cell({ c: C, r: R });
+        if (!worksheet[address]) continue;
+        
+        let cellStyle: any = {
+          alignment: { horizontal: alignments[C] || "left", vertical: "center" }
+        };
+
+        if (R === 0) {
+          cellStyle.font = { bold: true, color: { rgb: "FFFFFF" } };
+          cellStyle.fill = { fgColor: { rgb: "3B82F6" } };
+        } else {
+          if (worksheet[address].t === 'n') {
+            worksheet[address].z = '#,##0';
+          }
+        }
+
+        worksheet[address].s = cellStyle;
+      }
+    }
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Data Pembelian");
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const fileName = `Data_Pembelian_${dateStr}.xlsx`;
+    
+    try {
+      try {
+        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        
+        const fallbackShare = () => {
+          const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+          const file = new File([blob], fileName, { type: blob.type });
+  
+          if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            navigator.share({
+              files: [file],
+              title: 'Data Pembelian',
+            }).then(() => {
+              toast({ title: "Berhasil", description: "File Excel berhasil dibagikan" });
+            }).catch((err) => {
+              console.error("Error sharing:", err);
+              XLSX.writeFile(workbook, fileName);
+              toast({ title: "Berhasil", description: "File Excel berhasil diunduh" });
+            });
+          } else {
+            XLSX.writeFile(workbook, fileName);
+            toast({ title: "Berhasil", description: "File Excel berhasil diunduh" });
+          }
+        };
+
+        if ((window as any).Capacitor && (window as any).Capacitor.isNativePlatform()) {
+          import('@capacitor/filesystem').then(async ({ Filesystem, Directory }) => {
+            try {
+              const { Share } = await import('@capacitor/share');
+              const uint8Array = new Uint8Array(excelBuffer);
+              let binary = '';
+              const chunkSize = 8192;
+              for (let i = 0; i < uint8Array.length; i += chunkSize) {
+                const chunk = uint8Array.subarray(i, i + chunkSize);
+                binary += String.fromCharCode.apply(null, chunk as any);
+              }
+              const base64Data = btoa(binary);
+              const result = await Filesystem.writeFile({
+                path: fileName,
+                data: base64Data,
+                directory: Directory.Cache
+              });
+              await Share.share({
+                title: 'Data Pembelian',
+                text: 'Berikut adalah data pembelian',
+                url: result.uri,
+                dialogTitle: 'Bagikan Data'
+              });
+              toast({ title: "Berhasil", description: "Data siap dibagikan." });
+            } catch (err) {
+              console.error("Capacitor Share Error:", err);
+              fallbackShare();
+            }
+          }).catch(err => {
+            console.error("Capacitor Import Error:", err);
+            fallbackShare();
+          });
+        } else {
+          fallbackShare();
+        }
+      } catch (err) {
+        console.error("Share error:", err);
+        XLSX.writeFile(workbook, fileName);
+        toast({ title: "Berhasil", description: "File Excel berhasil diunduh" });
+      }
+    } catch (err) {
+      console.error("Share error:", err);
+      XLSX.writeFile(workbook, fileName);
+      toast({ title: "Berhasil", description: "File Excel berhasil diunduh" });
+    }
+  };
+
   return (
     <Sidebar>
       <div className="flex-1 flex flex-col h-full bg-slate-50 dark:bg-slate-950">
@@ -1213,6 +1358,9 @@ export default function SuppliersPage() {
             Pembelian ke Suplier
           </h1>
           <div className="flex flex-row gap-2 w-full sm:w-auto">
+            <Button variant="outline" onClick={handleExportExcel} className="flex-1 sm:flex-initial w-full sm:w-auto text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200">
+              <Download className="w-4 h-4 mr-2" /> Download
+            </Button>
             <Button
               className="w-full sm:w-auto"
               onClick={() => {

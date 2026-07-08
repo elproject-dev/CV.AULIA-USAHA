@@ -10,12 +10,14 @@ import { uploadProductImage, deleteProductImage, deleteProductImageByName, getPr
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Edit, Trash2, Package, FolderPlus, Upload, X, Image as ImageIcon, Store, Tag, AlertTriangle, SlidersHorizontal, ArrowUpDown, Clock, Layers, Archive, CheckCircle, Ruler, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Package, FolderPlus, Upload, X, Image as ImageIcon, Store, Tag, AlertTriangle, SlidersHorizontal, ArrowUpDown, Clock, Layers, Archive, CheckCircle, Ruler, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import * as XLSX from "xlsx-js-style";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { useQueryClient } from "@tanstack/react-query";
@@ -633,14 +635,171 @@ export default function ProductsPage() {
           } catch (err) {
             console.error("Error saat menghapus foto:", err);
           }
-          queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
-          refetchProducts();
           toast({ title: "Sukses", description: "Produk dihapus" });
         },
         onError: () => {
           toast({ title: "Error", description: "Gagal menghapus produk", variant: "destructive" });
         }
       });
+    }
+  };
+
+  const handleExportUomExcel = async () => {
+    if (!sortedProducts || sortedProducts.length === 0) {
+      toast({ title: "Error", description: "Tidak ada data produk untuk diekspor", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const excelData: any[] = [];
+      sortedProducts.forEach((product: any) => {
+        const uoms = product.uoms || [];
+        // Ensure base unit exists in export
+        let exportUoms = [...uoms];
+        const hasBaseUnit = exportUoms.some((u: any) => u.conversion_factor === 1 || u.is_default);
+        if (!hasBaseUnit) {
+          exportUoms = [{ unit_name: 'pcs', conversion_factor: 1, price: product.price, is_default: true, min_qty: 1, discount_type: 'none', discount_value: '' }, ...exportUoms];
+        }
+
+        exportUoms.forEach((uom: any) => {
+          const hppDasar = product.cost_price || product.hpp || 0;
+          const hppSatuan = Number(hppDasar) * Number(uom.conversion_factor || 1);
+          const basePrice = Number(uom.price || product.price || 0);
+          const discVal = Number(uom.discount_value || 0);
+
+          const rowData: any = {
+            "Nama Produk": product.name,
+            "Kategori": categories?.find((c: any) => c.id === product.category_id || c.id === product.categoryId)?.name || "Tanpa Kategori",
+            "Satuan": uom.unit_name,
+            "Konversi": uom.conversion_factor,
+            "HPP / Modal": hppSatuan,
+            "Harga Satuan Qty": basePrice,
+            "Min.beli(Qty)": uom.min_qty || 1,
+            "/": uom.unit_name,
+            "Diskon %": uom.discount_type === 'percentage' ? discVal : (discVal > 0 ? discVal : 0),
+          };
+
+          // Tambahkan harga per area
+          outlets.forEach((outlet: any) => {
+            const outletPrice = Number((uom.outlet_prices && uom.outlet_prices[outlet.id]) 
+              ? uom.outlet_prices[outlet.id] 
+              : basePrice);
+            rowData[`Harga (${outlet.name})`] = outletPrice;
+          });
+
+          rowData["Label Diskon"] = uom.label || "-";
+
+          excelData.push(rowData);
+        });
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+
+      const wscols = [
+        { wch: 35 }, { wch: 20 }, { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 18 }, { wch: 15 }, { wch: 8 }, { wch: 12 }
+      ];
+      outlets.forEach(() => { wscols.push({ wch: 18 }); });
+      wscols.push({ wch: 20 });
+      worksheet["!cols"] = wscols;
+
+      const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1:J1");
+      for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const address = XLSX.utils.encode_cell({ c: C, r: R });
+          if (!worksheet[address]) continue;
+
+          let alignStr = "left";
+          if (C === 0 || C === 1) alignStr = "left";
+          else if (C === 2 || C === 3) alignStr = "center";
+          else if (C === 4 || C === 5) alignStr = "right"; // HPP & Harga Satuan
+          else if (C === 6 || C === 7 || C === 8) alignStr = "center"; // Min beli, /, Diskon
+          else if (C === range.e.c) alignStr = "right"; // Label Diskon
+          else alignStr = "right"; // Outlets
+
+          let cellStyle: any = {
+            alignment: { horizontal: alignStr, vertical: "center" }
+          };
+
+          if (R === 0) {
+            cellStyle.font = { bold: true, color: { rgb: "FFFFFF" } };
+            cellStyle.fill = { fgColor: { rgb: "4F46E5" } };
+          } else {
+            if (worksheet[address].t === 'n') {
+              worksheet[address].z = '#,##0';
+            }
+          }
+
+          worksheet[address].s = { ...(worksheet[address].s || {}), ...cellStyle };
+        }
+      }
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Satuan & Diskon");
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      const fileName = `Data_Satuan_Diskon_${dateStr}.xlsx`;
+
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+
+      const fallbackShare = () => {
+        const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+        const file = new File([blob], fileName, { type: blob.type });
+
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          navigator.share({
+            files: [file],
+            title: 'Data Satuan & Diskon',
+          }).then(() => {
+            toast({ title: "Berhasil", description: "File Excel berhasil dibagikan" });
+          }).catch((err) => {
+            console.error("Error sharing:", err);
+            XLSX.writeFile(workbook, fileName);
+            toast({ title: "Berhasil", description: "File Excel berhasil diunduh" });
+          });
+        } else {
+          XLSX.writeFile(workbook, fileName);
+          toast({ title: "Berhasil", description: "File Excel berhasil diunduh" });
+        }
+      };
+
+      if ((window as any).Capacitor && (window as any).Capacitor.isNativePlatform()) {
+        import('@capacitor/filesystem').then(async ({ Filesystem, Directory }) => {
+          try {
+            const { Share } = await import('@capacitor/share');
+            const uint8Array = new Uint8Array(excelBuffer);
+            let binary = '';
+            const chunkSize = 8192;
+            for (let i = 0; i < uint8Array.length; i += chunkSize) {
+              const chunk = uint8Array.subarray(i, i + chunkSize);
+              binary += String.fromCharCode.apply(null, chunk as any);
+            }
+            const base64Data = btoa(binary);
+            const result = await Filesystem.writeFile({
+              path: fileName,
+              data: base64Data,
+              directory: Directory.Cache
+            });
+            await Share.share({
+              title: 'Data Satuan & Diskon',
+              text: 'Berikut adalah data satuan & diskon produk',
+              url: result.uri,
+              dialogTitle: 'Bagikan Data'
+            });
+            toast({ title: "Berhasil", description: "Data siap dibagikan." });
+          } catch (err) {
+            console.error("Capacitor Share Error:", err);
+            fallbackShare();
+          }
+        }).catch(err => {
+          console.error("Capacitor Import Error:", err);
+          fallbackShare();
+        });
+      } else {
+        fallbackShare();
+      }
+    } catch (err) {
+      console.error("Error exporting uom excel:", err);
+      toast({ title: "Error", description: "Gagal mengekspor data satuan & diskon", variant: "destructive" });
     }
   };
 
@@ -821,6 +980,164 @@ export default function ProductsPage() {
     }
   };
 
+  const handleExportExcel = () => {
+    if (!sortedProducts || sortedProducts.length === 0) {
+      toast({ title: "Error", description: "Tidak ada data produk untuk diekspor", variant: "destructive" });
+      return;
+    }
+
+    const formatExcelDate = (isoString: string) => {
+      if (!isoString) return '-';
+      const d = new Date(isoString);
+      const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Ags", "Sep", "Okt", "Nov", "Des"];
+      const day = d.getDate().toString().padStart(2, '0');
+      const month = months[d.getMonth()];
+      const year = d.getFullYear();
+      const hours = d.getHours().toString().padStart(2, '0');
+      const mins = d.getMinutes().toString().padStart(2, '0');
+      return `${day} ${month} ${year}, ${hours}.${mins}`;
+    };
+
+    const excelData = sortedProducts.map((p: any) => ({
+      "Nama Produk": p.name,
+      "Kategori": getCategoryName(p),
+      "Stok Gudang": p.stock_quantity || 0,
+      "Harga (Rp)": p.price,
+      "Status": p.isActive ? "Aktif" : "Nonaktif",
+      "Cabang Tersedia": getOutletName(p),
+      "Terakhir Diupdate": formatExcelDate(p.updated_at)
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+
+    // Auto-fit columns
+    const colWidths = [
+      { wch: 40 }, // Nama Produk
+      { wch: 20 }, // Kategori
+      { wch: 15 }, // Stok
+      { wch: 15 }, // Harga
+      { wch: 15 }, // Status
+      { wch: 30 }, // Cabang
+      { wch: 25 }, // Terakhir Update
+    ];
+    worksheet['!cols'] = colWidths;
+
+    // Apply styling and alignment for all cells
+    const range = XLSX.utils.decode_range(worksheet['!ref'] || "A1:G1");
+
+    const alignments = [
+      "left",   // 0: Nama Produk
+      "center", // 1: Kategori
+      "right",  // 2: Stok Gudang
+      "right",  // 3: Harga (Rp)
+      "center", // 4: Status
+      "left",   // 5: Cabang Tersedia
+      "center"  // 6: Terakhir Diupdate
+    ];
+
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const address = XLSX.utils.encode_cell({ c: C, r: R });
+        if (!worksheet[address]) continue;
+
+        const alignStr = alignments[C] || "left";
+
+        let cellStyle: any = {
+          alignment: { horizontal: alignStr, vertical: "center" }
+        };
+
+        if (R === 0) {
+          // Header style
+          cellStyle.font = { bold: true, color: { rgb: "FFFFFF" } };
+          cellStyle.fill = { fgColor: { rgb: "3B82F6" } };
+        } else {
+          if (worksheet[address].t === 'n') {
+            worksheet[address].z = '#,##0';
+          }
+        }
+
+        worksheet[address].s = cellStyle;
+      }
+    }
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Data Produk");
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const fileName = `Data_Produk_${dateStr}.xlsx`;
+
+    try {
+      try {
+        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+
+        const fallbackShare = () => {
+          const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+          const file = new File([blob], fileName, { type: blob.type });
+
+          if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            navigator.share({
+              files: [file],
+              title: 'Data Produk',
+            }).then(() => {
+              toast({ title: "Berhasil", description: "File Excel berhasil dibagikan" });
+            }).catch((err) => {
+              console.error("Error sharing:", err);
+              XLSX.writeFile(workbook, fileName);
+              toast({ title: "Berhasil", description: "File Excel berhasil diunduh" });
+            });
+          } else {
+            XLSX.writeFile(workbook, fileName);
+            toast({ title: "Berhasil", description: "File Excel berhasil diunduh" });
+          }
+        };
+
+        if ((window as any).Capacitor && (window as any).Capacitor.isNativePlatform()) {
+          import('@capacitor/filesystem').then(async ({ Filesystem, Directory }) => {
+            try {
+              const { Share } = await import('@capacitor/share');
+              const uint8Array = new Uint8Array(excelBuffer);
+              let binary = '';
+              const chunkSize = 8192;
+              for (let i = 0; i < uint8Array.length; i += chunkSize) {
+                const chunk = uint8Array.subarray(i, i + chunkSize);
+                binary += String.fromCharCode.apply(null, chunk as any);
+              }
+              const base64Data = btoa(binary);
+              const result = await Filesystem.writeFile({
+                path: fileName,
+                data: base64Data,
+                directory: Directory.Cache
+              });
+              await Share.share({
+                title: 'Data Produk',
+                text: 'Berikut adalah data produk',
+                url: result.uri,
+                dialogTitle: 'Bagikan Data'
+              });
+              toast({ title: "Berhasil", description: "Data siap dibagikan." });
+            } catch (err) {
+              console.error("Capacitor Share Error:", err);
+              fallbackShare();
+            }
+          }).catch(err => {
+            console.error("Capacitor Import Error:", err);
+            fallbackShare();
+          });
+        } else {
+          fallbackShare();
+        }
+      } catch (err) {
+        console.error("Share error:", err);
+        XLSX.writeFile(workbook, fileName);
+        toast({ title: "Berhasil", description: "File Excel berhasil diunduh" });
+      }
+    } catch (err) {
+      console.error("Share error:", err);
+      XLSX.writeFile(workbook, fileName);
+      toast({ title: "Berhasil", description: "File Excel berhasil diunduh" });
+    }
+  };
+
   return (
     <Sidebar>
       <div className="flex-1 flex flex-col h-full bg-slate-50 dark:bg-slate-950">
@@ -833,11 +1150,28 @@ export default function ProductsPage() {
           <div className="flex flex-row gap-2 w-full sm:w-auto">
             {isAdmin && (
               <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="flex-1 sm:flex-initial w-full sm:w-auto text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200">
+                      <Download className="w-4 h-4 mr-2" /> Download
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleExportExcel} className="cursor-pointer">
+                      <Package className="w-4 h-4 mr-2 text-slate-500" /> Download Stok
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleExportUomExcel} className="cursor-pointer">
+                      <Tag className="w-4 h-4 mr-2 text-slate-500" /> Download Satuan & Diskon
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button variant="outline" onClick={() => setIsCategoryDialogOpen(true)} className="flex-1 sm:flex-initial w-full sm:w-auto">
                   <FolderPlus className="w-4 h-4 mr-2" /> Kategori
                 </Button>
                 <Button onClick={() => handleOpenDialog()} className="flex-1 sm:flex-initial w-full sm:w-auto">
-                  <Plus className="w-4 h-4 mr-2" /> Tambah Produk
+                  <Plus className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Tambah Produk</span>
+                  <span className="sm:hidden">Tambah</span>
                 </Button>
               </>
             )}
