@@ -1,7 +1,8 @@
-export const APP_VERSION = '1.0.14';
+export const APP_VERSION = '1.0.15';
 
 export const RELEASE_CHANGELOG = [
-  "Pembaruan Faktur Print continuous form"
+  "update - forgot password",
+  "update - faktur cetak"
 ];
 
 export interface UpdateInfo {
