@@ -202,21 +202,21 @@ function TransactionReceiptDialog({
       const baseQty = item.quantity || 0;
       const totalDiscount = (item.discount_amount || 0) * baseQty;
       let totalOriginalPrice = (item.original_price || item.price || 0) * baseQty;
-      
+
       if (totalDiscount > 0 && totalOriginalPrice <= subtotal) {
-          totalOriginalPrice = subtotal + totalDiscount;
+        totalOriginalPrice = subtotal + totalDiscount;
       }
-      
+
       let discountPercent = 0;
       if (totalOriginalPrice > subtotal) {
-          const actualDiscount = totalOriginalPrice - subtotal;
-          discountPercent = Math.round((actualDiscount / totalOriginalPrice) * 100);
+        const actualDiscount = totalOriginalPrice - subtotal;
+        discountPercent = Math.round((actualDiscount / totalOriginalPrice) * 100);
       }
-      
+
       const displayOriginalPrice = qty > 0 ? (totalOriginalPrice / qty) : 0;
       const discountPercentStr = discountPercent > 0 ? `${discountPercent}%` : '-';
       const discountNominalStr = totalDiscount > 0 ? formatRupiah(totalDiscount) : '-';
-      
+
       return `
         <tr>
           <td style="text-align: center; color: #64748b;">${index + 1}</td>
@@ -594,7 +594,7 @@ function TransactionReceiptDialog({
           .items-table td {
             padding: 4px 6px;
             font-size: 11px;
-            border-bottom: 1px dashed #000000;
+            border-bottom: none;
             color: #000000 !important;
           }
           .items-table tr:last-child td {
@@ -737,7 +737,7 @@ function TransactionReceiptDialog({
             </div>
 
             <div className="p-4 sm:p-6 overflow-y-auto bg-white m-4 rounded-xl shadow-sm border border-slate-200 printable-receipt [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-              <div className="mb-4 sm:mb-6 pb-4 sm:pb-6 border-b-2 border-dashed border-slate-200">
+              <div className="mb-4 sm:mb-6 pb-4 sm:pb-6">
                 <div className="text-center mb-4">
                   <h2 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">{displayedStoreName}</h2>
                   <p className="text-xs text-slate-500 mt-1">{displayedAddress}</p>
@@ -780,48 +780,48 @@ function TransactionReceiptDialog({
                 </div>
               </div>
 
-              <div className="py-3 sm:py-4 border-y-2 border-dashed border-slate-200 space-y-3 sm:space-y-4 font-mono text-xs sm:text-sm">
+              <div className="py-3 sm:py-4 space-y-3 sm:space-y-4 font-mono text-xs sm:text-sm">
                 {trx.transaction_items?.map((item: any) => {
-                    const baseQty = item.quantity || 0;
-                    const qty = item.unit_qty !== undefined && item.unit_qty !== null ? item.unit_qty : baseQty;
-                    const subtotal = item.subtotal || 0;
-                    
-                    const totalDiscount = (item.discount_amount || 0) * baseQty;
-                    let totalOriginalPrice = (item.original_price || item.price || 0) * baseQty;
-                    
-                    if (totalDiscount > 0 && totalOriginalPrice <= subtotal) {
-                        totalOriginalPrice = subtotal + totalDiscount;
-                    }
-                    
-                    let discountPercent = 0;
-                    if (totalOriginalPrice > subtotal) {
-                        const actualDiscount = totalOriginalPrice - subtotal;
-                        discountPercent = Math.round((actualDiscount / totalOriginalPrice) * 100);
-                    }
-                    
-                    const displayOriginalPrice = qty > 0 ? (totalOriginalPrice / qty) : 0;
-                    
-                    return (
-                      <div key={item.id} className="flex justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-slate-900 break-words">{item.product_name}</p>
-                          <p className="text-slate-500 mt-0.5 text-xs">
-                            {qty} x {formatRupiah(displayOriginalPrice)}
-                            {discountPercent > 0 && ` (Diskon: ${discountPercent}%)`}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-slate-900 whitespace-nowrap">{formatRupiah(subtotal)}</p>
-                          {totalDiscount > 0 && (
-                            <p className="text-xs text-orange-600">- {formatRupiah(totalDiscount)}</p>
-                          )}
-                        </div>
+                  const baseQty = item.quantity || 0;
+                  const qty = item.unit_qty !== undefined && item.unit_qty !== null ? item.unit_qty : baseQty;
+                  const subtotal = item.subtotal || 0;
+
+                  const totalDiscount = (item.discount_amount || 0) * baseQty;
+                  let totalOriginalPrice = (item.original_price || item.price || 0) * baseQty;
+
+                  if (totalDiscount > 0 && totalOriginalPrice <= subtotal) {
+                    totalOriginalPrice = subtotal + totalDiscount;
+                  }
+
+                  let discountPercent = 0;
+                  if (totalOriginalPrice > subtotal) {
+                    const actualDiscount = totalOriginalPrice - subtotal;
+                    discountPercent = Math.round((actualDiscount / totalOriginalPrice) * 100);
+                  }
+
+                  const displayOriginalPrice = qty > 0 ? (totalOriginalPrice / qty) : 0;
+
+                  return (
+                    <div key={item.id} className="flex justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-slate-900 break-words">{item.product_name}</p>
+                        <p className="text-slate-500 mt-0.5 text-xs">
+                          {qty} x {formatRupiah(displayOriginalPrice)}
+                          {discountPercent > 0 && ` (Diskon: ${discountPercent}%)`}
+                        </p>
                       </div>
-                    );
-                  })}
+                      <div className="text-right">
+                        <p className="font-bold text-slate-900 whitespace-nowrap">{formatRupiah(subtotal)}</p>
+                        {totalDiscount > 0 && (
+                          <p className="text-xs text-orange-600">- {formatRupiah(totalDiscount)}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
-              <div className="space-y-2 py-4 sm:py-6 font-mono text-xs sm:text-sm border-b-2 border-dashed border-slate-200">
+              <div className="space-y-2 py-4 sm:py-6 font-mono text-xs sm:text-sm">
                 <div className="flex justify-between text-slate-600">
                   <span>Subtotal</span>
                   <span>{formatRupiah(trx.subtotal)}</span>
@@ -848,7 +848,7 @@ function TransactionReceiptDialog({
 
 
               {trx.payment_status === 'partial' && (
-                <div className="space-y-2 py-4 sm:py-6 font-mono text-xs sm:text-sm border-b-2 border-dashed border-slate-200">
+                <div className="space-y-2 py-4 sm:py-6 font-mono text-xs sm:text-sm">
                   <div className="flex justify-between text-slate-600">
                     <span>Cicilan Dibayar ({getPaymentLabel(trx.payment_method)})</span>
                     <span>{formatRupiah(trx.amount_paid || 0)}</span>
@@ -861,7 +861,7 @@ function TransactionReceiptDialog({
               )}
 
               {trx.payment_status === 'unpaid' && (
-                <div className="space-y-2 py-4 sm:py-6 font-mono text-xs sm:text-sm border-b-2 border-dashed border-slate-200">
+                <div className="space-y-2 py-4 sm:py-6 font-mono text-xs sm:text-sm">
                   <div className="flex justify-between font-bold text-slate-900">
                     <span>Tagihan (Tempo)</span>
                     <span className="text-red-600">{formatRupiah(trx.remaining_balance || 0)}</span>
