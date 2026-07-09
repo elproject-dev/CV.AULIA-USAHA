@@ -40,9 +40,11 @@ export default function ForgotPasswordPage() {
     setIsSubmitting(true);
 
     try {
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const redirectUrl = (Capacitor.isNativePlatform() || !isLocalhost)
-        ? `https://elproject-dev.github.io/CV.AULIA-USAHA/update-password`
+      // Deteksi jika aplikasi berjalan di Desktop (Tauri)
+      const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+      const redirectUrl = (Capacitor.isNativePlatform() || isTauri)
+        ? `https://elproject-dev.github.io/CV.AULIA-USAHA/update-password` // Ganti ini dengan URL web production Anda jika sudah berubah
         : `${window.location.origin}/update-password`;
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
