@@ -39,6 +39,13 @@ async function runDesktopRelease() {
     }
 
     console.log(`📦 Membangun (build) Tauri aplikasi versi: v${version}...`);
+    
+    // 2a. Bersihkan folder bundle lama agar tidak menumpuk
+    const nsisDir = path.resolve(__dirname, '../src-tauri/target/release/bundle/nsis');
+    const msiDir = path.resolve(__dirname, '../src-tauri/target/release/bundle/msi');
+    if (fs.existsSync(nsisDir)) fs.rmSync(nsisDir, { recursive: true, force: true });
+    if (fs.existsSync(msiDir)) fs.rmSync(msiDir, { recursive: true, force: true });
+
     // 2. Build Tauri dengan Kunci Signature
     // Catatan: Pastikan rust terinstal
     const privateKey = fs.readFileSync(path.resolve(__dirname, '../src-tauri/tauri.key'), 'utf-8');
@@ -55,7 +62,7 @@ async function runDesktopRelease() {
     // 3. Temukan file installer dan signature
     const bundleDir = path.resolve(__dirname, '../src-tauri/target/release/bundle/nsis');
     const bundleFiles = fs.existsSync(bundleDir) ? fs.readdirSync(bundleDir) : [];
-    const installerFileName = bundleFiles.find(f => f.endsWith('-setup.exe') || f.endsWith('.exe'));
+    const installerFileName = bundleFiles.find(f => f.includes(version) && (f.endsWith('-setup.exe') || f.endsWith('.exe')));
 
     if (!installerFileName) {
         throw new Error(`File build Tauri installer (.exe) tidak ditemukan di: ${bundleDir}`);

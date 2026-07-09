@@ -6,13 +6,15 @@ import type { UpdateInfo } from '@/lib/version';
 import { useAuth } from '@/contexts/AuthContext';
 import { Capacitor } from '@capacitor/core';
 import { downloadAndInstallApk, type DownloadProgress } from '@/lib/apk-installer';
+import { check } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
 
 export function UpdateDialog() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
-  
+
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -69,6 +71,66 @@ export function UpdateDialog() {
         setIsDownloading(false);
       }
       // Jika sukses, biarkan dialog terbuka (user akan switch ke installer Android)
+      return;
+    }
+
+    // Jika di Desktop (Tauri) gunakan silent update
+    if ('__TAURI_INTERNALS__' in window) {
+      setIsDownloading(true);
+      setDownloadError(null);
+      setDownloadProgress({ percent: 0, loaded: 0, total: 100, status: 'Memeriksa pembaruan...' });
+
+      try {
+        const update = await check();
+        if (update) {
+          setDownloadProgress({ percent: 10, loaded: 10, total: 100, status: 'Mempersiapkan unduhan...' });
+
+          let downloaded = 0;
+          let contentLength = 0;
+
+          await update.downloadAndInstall((event) => {
+            switch (event.event) {
+              case 'Started':
+                contentLength = event.data.contentLength || 0;
+                setDownloadProgress({ percent: 20, loaded: 20, total: 100, status: 'Mulai mengunduh...' });
+                break;
+              case 'Progress':
+                downloaded += event.data.chunkLength;
+                const percent = contentLength ? Math.round((downloaded / contentLength) * 100) : 50;
+                setDownloadProgress({ percent, loaded: downloaded, total: contentLength, status: `Mengunduh... ${percent}%` });
+                break;
+              case 'Finished':
+                setDownloadProgress({ percent: 100, loaded: 100, total: 100, status: 'Selesai. Memulai ulang...' });
+                break;
+            }
+          });
+
+          await relaunch();
+        } else {
+          // Jika update tidak terdeteksi via sistem Tauri (misal cache), fallback ke download manual
+          setIsDownloading(false);
+          window.open(url, '_blank');
+          if (!updateInfo.forceUpdate) {
+            setIsOpen(false);
+          }
+        }
+      } catch (err) {
+        console.error('Tauri updater failed, falling back:', err);
+        setIsDownloading(false);
+
+        // Fallback ke manual download
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = url.split('/').pop() || 'kasir-update.exe';
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        if (!updateInfo.forceUpdate) {
+          setIsOpen(false);
+        }
+      }
       return;
     }
 
@@ -207,7 +269,7 @@ export function UpdateDialog() {
               <div className={`relative flex items-center justify-center gap-4 mb-7 mt-2 transition-all duration-500 delay-200 ${isAnimating ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'}`}>
                 {/* Connection Line */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-0.5 bg-gradient-to-r from-slate-200 via-primary/50 to-primary/20 dark:from-slate-700 dark:via-primary/50" />
-                
+
                 <div className="relative flex flex-col items-center px-5 py-3 bg-white dark:bg-slate-900 rounded-2xl shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] border border-slate-100 dark:border-slate-800 z-10">
                   <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">Saat ini</span>
                   <span className="text-sm font-black text-slate-600 dark:text-slate-300">v{updateInfo.currentVersion}</span>
@@ -286,7 +348,7 @@ export function UpdateDialog() {
               >
                 {/* Shine Animation */}
                 <div className="absolute inset-0 -translate-x-[150%] bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
-                
+
                 <span className="relative flex items-center z-10">
                   <svg className="w-5 h-5 mr-2 drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

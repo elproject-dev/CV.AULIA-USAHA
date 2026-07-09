@@ -92,7 +92,9 @@
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
+    "@tauri-apps/plugin-process": "^2.2.0",
     "@tauri-apps/plugin-shell": "^2.3.5",
+    "@tauri-apps/plugin-updater": "^2.6.1",
     "cordova-plugin-bluetooth-serial": "^0.4.7",
     "xlsx-js-style": "^1.2.0"
   }

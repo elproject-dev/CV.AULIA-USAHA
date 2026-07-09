@@ -1,9 +1,7 @@
-export const APP_VERSION = '1.0.10';
+export const APP_VERSION = '1.0.14';
 
 export const RELEASE_CHANGELOG = [
-  "Fitur Download Satuan/Diskon & Stok Gudang",
-  "Fitur Download Laporan Supllier",
-  "Perbaikan Semua Cetak Faktur Agar Lebih Jelas"
+  "Pembaruan Faktur Print continuous form"
 ];
 
 export interface UpdateInfo {
