@@ -42,7 +42,7 @@ export default function ForgotPasswordPage() {
     try {
       const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
       const redirectUrl = (Capacitor.isNativePlatform() || !isLocalhost)
-        ? `https://elproject-dev.github.io/CV.AULIA/update-password`
+        ? `https://elproject-dev.github.io/CV.AULIA-USAHA/update-password`
         : `${window.location.origin}/update-password`;
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -86,7 +86,7 @@ export default function ForgotPasswordPage() {
 
         <div className="relative group">
           <div className="absolute -inset-1 bg-gradient-to-r from-white/20 to-white/0 rounded-[2rem] blur opacity-30 transition duration-1000"></div>
-          
+
           <div className="relative bg-white/10 backdrop-blur-2xl rounded-[2rem] border border-white/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] p-8 sm:p-10">
             {isSuccess ? (
               <div className="text-center space-y-6">
@@ -95,7 +95,7 @@ export default function ForgotPasswordPage() {
                 </div>
                 <h3 className="text-xl font-bold text-white">Periksa Email Anda</h3>
                 <p className="text-white/80 text-sm leading-relaxed">
-                  Kami telah mengirimkan link untuk mereset kata sandi ke <strong>{email}</strong>. 
+                  Kami telah mengirimkan link untuk mereset kata sandi ke <strong>{email}</strong>.
                   Silakan klik link tersebut untuk membuat kata sandi baru.
                 </p>
                 <Button
