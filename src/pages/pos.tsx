@@ -902,6 +902,8 @@ export default function POSPage() {
             productName: item.productName,
             quantity: item.quantity * item.conversionFactor,
             price: (price - discount) / item.conversionFactor,
+            originalPrice: price / item.conversionFactor,
+            discountAmount: discount / item.conversionFactor,
             cost_price: 0,
             total: (price - discount) * item.quantity,
             unitName: item.unitName,

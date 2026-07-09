@@ -199,12 +199,32 @@ function TransactionReceiptDialog({
       const unit = item.unit_name || 'pcs';
       const unitPrice = qty > 0 ? (item.subtotal || 0) / qty : (item.price || 0);
       const subtotal = item.subtotal || 0;
+      const baseQty = item.quantity || 0;
+      const totalDiscount = (item.discount_amount || 0) * baseQty;
+      let totalOriginalPrice = (item.original_price || item.price || 0) * baseQty;
+      
+      if (totalDiscount > 0 && totalOriginalPrice <= subtotal) {
+          totalOriginalPrice = subtotal + totalDiscount;
+      }
+      
+      let discountPercent = 0;
+      if (totalOriginalPrice > subtotal) {
+          const actualDiscount = totalOriginalPrice - subtotal;
+          discountPercent = Math.round((actualDiscount / totalOriginalPrice) * 100);
+      }
+      
+      const displayOriginalPrice = qty > 0 ? (totalOriginalPrice / qty) : 0;
+      const discountPercentStr = discountPercent > 0 ? `${discountPercent}%` : '-';
+      const discountNominalStr = totalDiscount > 0 ? formatRupiah(totalDiscount) : '-';
+      
       return `
         <tr>
           <td style="text-align: center; color: #64748b;">${index + 1}</td>
           <td style="font-weight: 600; color: #0f172a;">${productName}</td>
           <td style="text-align: center; font-weight: 600; color: #0f172a;">${qty} ${unit}</td>
-          <td style="text-align: right; color: #475569;">${formatRupiah(unitPrice)}</td>
+          <td style="text-align: right; color: #475569;">${formatRupiah(displayOriginalPrice)}</td>
+          <td style="text-align: center; color: #ea580c;">${discountPercentStr}</td>
+          <td style="text-align: right; color: #ea580c;">${discountNominalStr}</td>
           <td style="text-align: right; font-weight: 700; color: #0f172a;">${formatRupiah(subtotal)}</td>
         </tr>`;
     }).join('') || '';
@@ -215,6 +235,8 @@ function TransactionReceiptDialog({
         itemsHtml += `
           <tr class="empty-row">
             <td style="text-align: center; color: #cbd5e1;">${i + 1}</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
             <td>&nbsp;</td>
             <td>&nbsp;</td>
             <td>&nbsp;</td>
@@ -322,10 +344,12 @@ function TransactionReceiptDialog({
               <thead>
                 <tr>
                   <th style="width: 5%; text-align: center;">No</th>
-                  <th style="width: 44%; text-align: left;">Nama Produk / Item</th>
-                  <th style="width: 15%; text-align: center;">Qty</th>
+                  <th style="width: 32%; text-align: left;">Nama Produk / Item</th>
+                  <th style="width: 8%; text-align: center;">Qty</th>
                   <th style="width: 15%; text-align: right;">Harga Satuan</th>
-                  <th style="width: 20%; text-align: right;">Subtotal</th>
+                  <th style="width: 10%; text-align: center;">Diskon %</th>
+                  <th style="width: 15%; text-align: right;">Diskon (Rp)</th>
+                  <th style="width: 15%; text-align: right;">Subtotal</th>
                 </tr>
               </thead>
               <tbody>
@@ -348,11 +372,11 @@ function TransactionReceiptDialog({
                       <td style="color: #475569; font-weight: 500; text-align: left;">Pajak</td>
                       <td style="text-align: right; color: #0f172a; font-weight: 600;">${formatRupiah(trx.tax)}</td>
                     </tr>` : ''}
-                    ${trx.discount && trx.discount > 0 ? `
-                    <tr>
-                      <td style="color: #ea580c; font-weight: 500; text-align: left;">Diskon</td>
-                      <td style="text-align: right; color: #ea580c; font-weight: 600;">-${formatRupiah(trx.discount)}</td>
-                    </tr>` : ''}
+                    ${trx.discount > 0 ? `
+                      <tr>
+                        <td style="color: #475569; font-weight: 500; text-align: left;">Diskon</td>
+                        <td style="text-align: right; color: #ea580c; font-weight: 600;">-${formatRupiah(trx.discount)}</td>
+                      </tr>` : ''}
                     <tr>
                       <td style="color: #0f172a; font-weight: 800; border-top: 1.5px solid #0f172a; padding-top: 4px; text-align: left; font-size: 13px;">TOTAL</td>
                       <td style="text-align: right; color: #0f172a; font-weight: 800; border-top: 1.5px solid #0f172a; padding-top: 4px; font-size: 13px;">
@@ -757,15 +781,44 @@ function TransactionReceiptDialog({
               </div>
 
               <div className="py-3 sm:py-4 border-y-2 border-dashed border-slate-200 space-y-3 sm:space-y-4 font-mono text-xs sm:text-sm">
-                {trx.transaction_items?.map((item: any) => (
-                  <div key={item.id} className="flex justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-slate-900 break-words">{item.product_name}</p>
-                      <p className="text-slate-500 mt-0.5 text-xs">{item.quantity} x {formatRupiah(item.price)}</p>
-                    </div>
-                    <p className="font-bold text-slate-900 whitespace-nowrap text-right">{formatRupiah(item.subtotal)}</p>
-                  </div>
-                ))}
+                {trx.transaction_items?.map((item: any) => {
+                    const baseQty = item.quantity || 0;
+                    const qty = item.unit_qty !== undefined && item.unit_qty !== null ? item.unit_qty : baseQty;
+                    const subtotal = item.subtotal || 0;
+                    
+                    const totalDiscount = (item.discount_amount || 0) * baseQty;
+                    let totalOriginalPrice = (item.original_price || item.price || 0) * baseQty;
+                    
+                    if (totalDiscount > 0 && totalOriginalPrice <= subtotal) {
+                        totalOriginalPrice = subtotal + totalDiscount;
+                    }
+                    
+                    let discountPercent = 0;
+                    if (totalOriginalPrice > subtotal) {
+                        const actualDiscount = totalOriginalPrice - subtotal;
+                        discountPercent = Math.round((actualDiscount / totalOriginalPrice) * 100);
+                    }
+                    
+                    const displayOriginalPrice = qty > 0 ? (totalOriginalPrice / qty) : 0;
+                    
+                    return (
+                      <div key={item.id} className="flex justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-slate-900 break-words">{item.product_name}</p>
+                          <p className="text-slate-500 mt-0.5 text-xs">
+                            {qty} x {formatRupiah(displayOriginalPrice)}
+                            {discountPercent > 0 && ` (Diskon: ${discountPercent}%)`}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-slate-900 whitespace-nowrap">{formatRupiah(subtotal)}</p>
+                          {totalDiscount > 0 && (
+                            <p className="text-xs text-orange-600">- {formatRupiah(totalDiscount)}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
 
               <div className="space-y-2 py-4 sm:py-6 font-mono text-xs sm:text-sm border-b-2 border-dashed border-slate-200">
@@ -781,7 +834,7 @@ function TransactionReceiptDialog({
                 ) : null}
                 {trx.discount && trx.discount > 0 ? (
                   <div className="flex justify-between text-destructive">
-                    <span>Diskon</span>
+                    <span>Diskon {trx.discount_note ? `(${trx.discount_note})` : ''}</span>
                     <span>-{formatRupiah(trx.discount)}</span>
                   </div>
                 ) : null}
