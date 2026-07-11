@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { useListTransactions, useListOutlets, useGetTransaction, useDeleteTransaction, useStoreSettings } from "@workspace/api-client-react";
-import { formatRupiah, formatInvoiceNumber } from "@/lib/formatters";
+import { formatRupiah, formatInvoiceNumber, formatSimpleDate } from "@/lib/formatters";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -213,18 +213,14 @@ function TransactionReceiptDialog({
         discountPercent = Math.round((actualDiscount / totalOriginalPrice) * 100);
       }
 
-      const displayOriginalPrice = qty > 0 ? (totalOriginalPrice / qty) : 0;
-      const discountPercentStr = discountPercent > 0 ? `${discountPercent}%` : '-';
-      const discountNominalStr = totalDiscount > 0 ? formatRupiah(totalDiscount) : '-';
+      const displayPrice = qty > 0 ? (subtotal / qty) : 0;
 
       return `
         <tr>
           <td style="text-align: center; color: #64748b;">${index + 1}</td>
           <td style="font-weight: 600; color: #0f172a;">${productName}</td>
           <td style="text-align: center; font-weight: 600; color: #0f172a;">${qty} ${unit}</td>
-          <td style="text-align: right; color: #475569;">${formatRupiah(displayOriginalPrice)}</td>
-          <td style="text-align: center; color: #ea580c;">${discountPercentStr}</td>
-          <td style="text-align: right; color: #ea580c;">${discountNominalStr}</td>
+          <td style="text-align: right; color: #475569;">${formatRupiah(displayPrice)}</td>
           <td style="text-align: right; font-weight: 700; color: #0f172a;">${formatRupiah(subtotal)}</td>
         </tr>`;
     }).join('') || '';
@@ -235,8 +231,6 @@ function TransactionReceiptDialog({
         itemsHtml += `
           <tr class="empty-row">
             <td style="text-align: center; color: #cbd5e1;">${i + 1}</td>
-            <td>&nbsp;</td>
-            <td>&nbsp;</td>
             <td>&nbsp;</td>
             <td>&nbsp;</td>
             <td>&nbsp;</td>
@@ -283,8 +277,8 @@ function TransactionReceiptDialog({
                 </td>
                 <td style="width: 40%; text-align: right; vertical-align: top;">
                   <h1 class="invoice-title">FAKTUR PENJUALAN</h1>
-                  <div style="font-size: 10px; font-weight: 700; margin-top: 4px; display: inline-flex; gap: 6px; justify-content: flex-end; align-items: center; width: 100%;">
-                    <span class="invoice-status-badge ${trx.payment_status === 'paid' ? 'badge-completed' : 'badge-pending'}">${trx.payment_status === 'paid' ? 'LUNAS' : trx.payment_status === 'partial' ? 'CICILAN' : 'TEMPO'}</span>
+                  <div style="font-size: 12px; font-weight: 700; margin-top: 4px; display: inline-flex; gap: 6px; justify-content: flex-end; align-items: center; width: 100%;">
+                    <span class="invoice-status-badge ${trx.payment_status === 'paid' ? 'badge-completed' : trx.payment_status === 'partial' ? 'badge-partial' : 'badge-pending'}">${trx.payment_status === 'paid' ? 'LUNAS' : trx.payment_status === 'partial' ? 'CICILAN' : 'TEMPO PENUH'}</span>
                   </div>
                 </td>
               </tr>
@@ -295,7 +289,7 @@ function TransactionReceiptDialog({
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 8px;">
               <tr>
                 <td style="width: 70%; vertical-align: top;">
-                  <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
+                  <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
                     <tr>
                       <td style="width: 1%; white-space: nowrap; padding: 2px 0; color: #475569; font-weight: 500;">Kepada Yth.</td>
                       <td style="width: 1%; white-space: nowrap; padding: 2px 8px 2px 4px; color: #475569;">:</td>
@@ -309,7 +303,7 @@ function TransactionReceiptDialog({
                     <tr>
                       <td style="width: 1%; white-space: nowrap; padding: 2px 0; color: #475569; font-weight: 500;">Alamat</td>
                       <td style="width: 1%; white-space: nowrap; padding: 2px 8px 2px 4px; color: #475569;">:</td>
-                      <td style="padding: 2px 0; font-size: 9.5px; line-height: 1.2;">
+                      <td style="padding: 2px 0; font-size: 11.4px; line-height: 1.2;">
                         ${trx.customers?.address || '-'}
                         ${trx.customers?.district ? `, ${trx.customers?.district}` : ''}
                         ${trx.customers?.city ? `, ${trx.customers?.city}` : ''}
@@ -319,7 +313,7 @@ function TransactionReceiptDialog({
                 </td>
                 <td style="width: 2%;"></td> <!-- Spacer -->
                 <td style="width: 28%; vertical-align: top;">
-                  <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
+                  <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
                     <tr>
                       <td style="width: 1%; white-space: nowrap; padding: 2px 0; color: #475569; font-weight: 500;">No. Invoice</td>
                       <td style="width: 1%; white-space: nowrap; padding: 2px 8px 2px 4px; color: #475569;">:</td>
@@ -344,12 +338,10 @@ function TransactionReceiptDialog({
               <thead>
                 <tr>
                   <th style="width: 5%; text-align: center;">No</th>
-                  <th style="width: 32%; text-align: left;">Nama Produk / Item</th>
-                  <th style="width: 8%; text-align: center;">Qty</th>
-                  <th style="width: 15%; text-align: right;">Harga Satuan</th>
-                  <th style="width: 10%; text-align: center;">Diskon %</th>
-                  <th style="width: 15%; text-align: right;">Diskon (Rp)</th>
-                  <th style="width: 15%; text-align: right;">Subtotal</th>
+                  <th style="width: 45%; text-align: left;">Nama Produk</th>
+                  <th style="width: 10%; text-align: center;">Qty</th>
+                  <th style="width: 20%; text-align: right;">Harga Satuan</th>
+                  <th style="width: 20%; text-align: right;">Subtotal</th>
                 </tr>
               </thead>
               <tbody>
@@ -360,13 +352,14 @@ function TransactionReceiptDialog({
             <table style="width: 100%; border-collapse: collapse; margin-top: 4px;">
               <tr>
                 <td style="width: 55%; vertical-align: top;">
-                  <div style="font-size: 12px; line-height: 1.6; color: #0f172a;">
+                  <div style="font-size: 14.4px; line-height: 1.6; color: #0f172a;">
                     Metode Pembayaran : <strong>${getPaymentLabel(trx.payment_method)}</strong><br>
-                    Status : <strong>${trx.payment_status === 'paid' ? 'Lunas' : trx.payment_status === 'partial' ? 'Cicilan' : 'Tempo'}</strong>
+                    Status : <strong>${trx.payment_status === 'paid' ? 'Lunas' : trx.payment_status === 'partial' ? 'Cicilan' : 'Tempo Penuh'}</strong>
+                    ${trx.payment_status !== 'paid' && trx.due_date ? `<br>Jatuh Tempo : <strong>${formatSimpleDate(trx.due_date)}</strong>` : ''}
                   </div>
                 </td>
                 <td style="width: 45%; vertical-align: top; text-align: right;">
-                  <table style="width: 100%; border-collapse: collapse; font-size: 9.5px; line-height: 1.4; float: right;">
+                  <table style="width: 100%; border-collapse: collapse; font-size: 11.4px; line-height: 1.4; float: right;">
                     ${trx.tax && trx.tax > 0 ? `
                     <tr>
                       <td style="color: #475569; font-weight: 500; text-align: left;">Pajak</td>
@@ -378,8 +371,8 @@ function TransactionReceiptDialog({
                         <td style="text-align: right; color: #ea580c; font-weight: 600;">-${formatRupiah(trx.discount)}</td>
                       </tr>` : ''}
                     <tr>
-                      <td style="color: #0f172a; font-weight: 800; border-top: 1.5px solid #0f172a; padding-top: 4px; text-align: left; font-size: 13px;">TOTAL</td>
-                      <td style="text-align: right; color: #0f172a; font-weight: 800; border-top: 1.5px solid #0f172a; padding-top: 4px; font-size: 13px;">
+                      <td style="color: #0f172a; font-weight: 800; border-top: 1.5px solid #0f172a; padding-top: 4px; text-align: left; font-size: 15.6px;">TOTAL</td>
+                      <td style="text-align: right; color: #0f172a; font-weight: 800; border-top: 1.5px solid #0f172a; padding-top: 4px; font-size: 15.6px;">
                         ${formatRupiah((trx.subtotal || 0) + (trx.tax || 0) - (trx.discount || 0))}
                       </td>
                     </tr>
@@ -406,14 +399,14 @@ function TransactionReceiptDialog({
           <div>
             <table style="width: 100%; margin-top: 12px; border-collapse: collapse;">
               <tr>
-                <td style="width: 50%; text-align: center; font-size: 10px; color: #334155; vertical-align: top;">
+                <td style="width: 50%; text-align: center; font-size: 12px; color: #334155; vertical-align: top;">
                   <div>Penerima,</div>
                   <div style="height: 32px;"></div>
                   <div style="color: #0f172a; display: inline-block; min-width: 130px; padding-top: 2px; font-family: monospace;">
                     ( _________________ )
                   </div>
                 </td>
-                <td style="width: 50%; text-align: center; font-size: 10px; color: #334155; vertical-align: top;">
+                <td style="width: 50%; text-align: center; font-size: 12px; color: #334155; vertical-align: top;">
                   <div>Hormat Kami,</div>
                   <div style="height: 32px;"></div>
                   <div style="color: #0f172a; display: inline-block; min-width: 130px; padding-top: 2px; font-family: monospace;">
@@ -423,14 +416,14 @@ function TransactionReceiptDialog({
               </tr>
             </table>
             
-            <div style="text-align: left; font-size: 8px; font-style: italic; color: #475569; margin-top: 10px; line-height: 1.2; width: 100%;">
+            <div style="text-align: left; font-size: 9.6px; font-style: italic; color: #475569; margin-top: 10px; line-height: 1.2; width: 100%;">
               Pembayaran Transfer melalui Bank: <strong>${storeInfo?.bankName || 'BCA'} ${storeInfo?.bankAccount || '4451377137'}</strong> a/n <strong>${storeInfo?.bankAccountName || 'AULIA USAHA'}</strong>
             </div>
 
             <div class="footer-divider"></div>
             <table style="width: 100%; border-collapse: collapse;">
               <tr>
-                <td style="text-align: center; font-size: 8.5px; color: #64748b;">
+                <td style="text-align: center; font-size: 10.2px; color: #64748b;">
                   ${[displayedFooter1, displayedFooter2, displayedFooter3].filter(Boolean).join(' | ') || 'Terima Kasih Sudah Melakukan Order'}
                 </td>
               </tr>
@@ -462,7 +455,7 @@ function TransactionReceiptDialog({
             font-weight: bold !important; /* Semua teks ditebalkan */
           }
           body {
-            font-size: 11px;
+            font-size: 13.2px;
             font-weight: 600;
             line-height: 1.35;
             margin: 0;
@@ -488,7 +481,7 @@ function TransactionReceiptDialog({
             justify-content: center;
             text-align: center;
             color: #94a3b8;
-            font-size: 8px;
+            font-size: 9.6px;
             font-weight: 700;
             letter-spacing: 0.15em;
             margin: 1mm 0;
@@ -508,7 +501,7 @@ function TransactionReceiptDialog({
             border-collapse: collapse;
           }
           .company-name {
-            font-size: 13px;
+            font-size: 15.6px;
             font-weight: 800;
             color: #0f172a;
             margin: 0;
@@ -517,11 +510,11 @@ function TransactionReceiptDialog({
           }
           .company-address, .company-contact {
             margin: 0;
-            font-size: 8.5px;
+            font-size: 10.2px;
             color: #475569;
           }
           .invoice-title {
-            font-size: 15px;
+            font-size: 18px;
             font-weight: 800;
             color: #0f172a;
             margin: 0;
@@ -529,7 +522,7 @@ function TransactionReceiptDialog({
           }
           .invoice-copy-badge {
             display: inline-block;
-            font-size: 7.5px;
+            font-size: 9px;
             font-weight: 700;
             letter-spacing: 0.05em;
             padding: 1px 5px;
@@ -541,7 +534,7 @@ function TransactionReceiptDialog({
           }
           .invoice-status-badge {
             display: inline-block;
-            font-size: 7.5px;
+            font-size: 9px;
             font-weight: 700;
             letter-spacing: 0.05em;
             padding: 1px 5px;
@@ -571,7 +564,7 @@ function TransactionReceiptDialog({
           .metadata-table td {
             padding: 2px 0;
             vertical-align: top;
-            font-size: 10px;
+            font-size: 12px;
           }
           .metadata-table td:first-child, .metadata-table td:nth-child(4) {
             color: #475569;
@@ -584,7 +577,7 @@ function TransactionReceiptDialog({
           }
           .items-table th {
             color: #000000 !important;
-            font-size: 10px;
+            font-size: 12px;
             font-weight: bold;
             text-transform: uppercase;
             padding: 4px 6px;
@@ -593,7 +586,7 @@ function TransactionReceiptDialog({
           }
           .items-table td {
             padding: 4px 6px;
-            font-size: 11px;
+            font-size: 13.2px;
             border-bottom: none;
             color: #000000 !important;
           }
@@ -616,7 +609,7 @@ function TransactionReceiptDialog({
             border: 1px solid #e2e8f0;
             border-radius: 4px;
             padding: 6px 10px;
-            font-size: 9.5px;
+            font-size: 11.4px;
             line-height: 1.35;
           }
           .footer-divider {
@@ -635,7 +628,7 @@ function TransactionReceiptDialog({
           }
           .btn {
             padding: 8px 20px;
-            font-size: 12px;
+            font-size: 14.4px;
             font-weight: 600;
             border-radius: 4px;
             cursor: pointer;

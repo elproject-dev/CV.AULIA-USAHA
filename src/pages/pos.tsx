@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useListProducts, useListCategories, useListCustomers, useCreateTransaction, useUpdateTransaction, useGetTransaction, getListProductsQueryKey, getListCustomersQueryKey, useListOutlets, generateNextCustomerId, useUpdateCustomer, useStoreSettings } from "@workspace/api-client-react";
+import { useListProducts, useListCategories, useListCustomers, useCreateTransaction, useUpdateTransaction, useGetTransaction, getListProductsQueryKey, getListCustomersQueryKey, useListOutlets, generateNextCustomerId, useUpdateCustomer, useStoreSettings, useDiscountSettings } from "@workspace/api-client-react";
 import { formatRupiah, formatInvoiceNumber } from "@/lib/formatters";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
@@ -88,8 +88,10 @@ export default function POSPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const cashierName = useAuthUserName();
+  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
   const queryClient = useQueryClient();
   const { data: storeSettingsData } = useStoreSettings();
+  const { data: discountSettingsData } = useDiscountSettings();
   const [, setLocation] = useLocation();
   const searchParams = new URLSearchParams(window.location.search);
   const editIdParam = searchParams.get('edit');
@@ -138,7 +140,9 @@ export default function POSPage() {
   const [discountNoteOptions, setDiscountNoteOptions] = useState<string[]>([]);
   const [isCustomDiscountNote, setIsCustomDiscountNote] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const enableDiscount = false;
+  const [discountPercentStr, setDiscountPercentStr] = useState<string>("");
+  const [discountType, setDiscountType] = useState<"nominal" | "percent">("nominal");
+  const enableDiscount = isAdmin && isEditMode;
   const defaultDiscountPrice = "0";
   const enablePPN = false;
   const ppnPercentage = 11;
@@ -193,9 +197,31 @@ export default function POSPage() {
       }
 
       if (editTransactionData.discount > 0) {
-        setDiscountDisplay(formatNumberWithDots(editTransactionData.discount?.toString() || "0"));
-        setDiscountStr(formatNumberWithDots(editTransactionData.discount?.toString() || "0"));
-        setDiscountNote(editTransactionData.discount_note || "");
+        const note = editTransactionData.discount_note || "";
+
+        // Default to 0 / empty for admin discounts as requested
+        setDiscountType('nominal');
+        setDiscountPercentStr("");
+        setDiscountDisplay("");
+        setDiscountStr("");
+
+        // Parse custom note part
+        const noteParts = note.split(' + ');
+        const customNotePart = noteParts.find((p: string) => !p.startsWith('Diskon Global') && !p.startsWith('Diskon Admin'));
+        
+        if (customNotePart) {
+           setDiscountNote(customNotePart);
+        } else if (!note.includes('Diskon Global') && !note.includes('Diskon Admin')) {
+           setDiscountNote(note);
+        } else {
+           setDiscountNote("");
+        }
+      } else {
+        setDiscountType('nominal');
+        setDiscountDisplay("");
+        setDiscountStr("");
+        setDiscountPercentStr("");
+        setDiscountNote("");
       }
     }
   }, [editTransactionData, isEditMode]);
@@ -206,8 +232,6 @@ export default function POSPage() {
   // QTY selector state
   const [qtySelector, setQtySelector] = useState<{ product: any, uom: any | null } | null>(null);
   const [qtyInput, setQtyInput] = useState<number>(1);
-
-  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
   // Initialize outlet: Kasir's specific outlet for Kasir, Admin's assigned outlet if set, otherwise 'all'
   const [selectedOutlet, setSelectedOutlet] = useState<string>(() => {
@@ -223,9 +247,11 @@ export default function POSPage() {
     return "all";
   });
 
-  // Force outlet to always match user assignment
+  // Force outlet to always match user assignment or transaction data in edit mode
   useEffect(() => {
-    if (!isAdmin) {
+    if (isEditMode && editTransactionData?.outlet_id) {
+      setSelectedOutlet(editTransactionData.outlet_id.toString());
+    } else if (!isAdmin) {
       // Kasir must always use their assigned outlet
       setSelectedOutlet(user?.outletId || "all");
     } else {
@@ -234,7 +260,7 @@ export default function POSPage() {
         setSelectedOutlet(user.outletId);
       }
     }
-  }, [isAdmin, user?.outletId]);
+  }, [isAdmin, user?.outletId, isEditMode, editTransactionData?.outlet_id]);
 
   const { data: outlets } = useListOutlets();
 
@@ -266,13 +292,21 @@ export default function POSPage() {
   }, [isEditMode, editTransactionData, customers]);
 
   const getProductBasePrice = (product: any) => {
-    let basePrice = product.price;
-    if (selectedOutlet && selectedOutlet !== "all" && product.outlet_prices) {
-      if (product.outlet_prices[selectedOutlet]) {
-        basePrice = Number(product.outlet_prices[selectedOutlet]);
+    // Priority 1: Check default/base UOM outlet-specific price
+    if (selectedOutlet && selectedOutlet !== "all" && product.uoms && product.uoms.length > 0) {
+      const baseUom = product.uoms.find((u: any) => u.conversion_factor === 1 || u.is_default);
+      if (baseUom && baseUom.outlet_prices && baseUom.outlet_prices[selectedOutlet]) {
+        return Number(baseUom.outlet_prices[selectedOutlet]);
       }
     }
-    return basePrice;
+    // Priority 2: Product-level outlet price
+    if (selectedOutlet && selectedOutlet !== "all" && product.outlet_prices) {
+      if (product.outlet_prices[selectedOutlet]) {
+        return Number(product.outlet_prices[selectedOutlet]);
+      }
+    }
+    // Priority 3: Default price
+    return product.price;
   };
 
   // Get UOM price considering outlet-specific UOM prices
@@ -764,16 +798,47 @@ export default function POSPage() {
     return Math.round(subtotal * (ppnPercentage / 100));
   }, [subtotal, enablePPN, ppnPercentage]);
 
+  // Global Discount Logic - reads from Supabase via discountSettingsData (reactive)
+  const globalDiscountEnabled = discountSettingsData?.global_discount_enabled === true;
+  const globalRules = globalDiscountEnabled && Array.isArray(discountSettingsData?.global_discount_rules)
+    ? discountSettingsData.global_discount_rules
+    : [];
+
+  const { globalDiscountAmount, appliedGlobalDiscountPercent } = useMemo(() => {
+    if (!globalDiscountEnabled || globalRules.length === 0) {
+      return { globalDiscountAmount: 0, appliedGlobalDiscountPercent: 0 };
+    }
+
+    // Sort rules by minPurchase descending so we check highest tier first
+    const sortedRules = [...globalRules].sort((a, b) => Number(b.minPurchase) - Number(a.minPurchase));
+
+    for (const rule of sortedRules) {
+      const minPurchase = Number(rule.minPurchase);
+      const percent = Number(rule.percent);
+
+      if (subtotal >= minPurchase) {
+        return {
+          globalDiscountAmount: Math.floor(subtotal * (percent / 100)),
+          appliedGlobalDiscountPercent: percent
+        };
+      }
+    }
+
+    return { globalDiscountAmount: 0, appliedGlobalDiscountPercent: 0 };
+  }, [globalDiscountEnabled, globalRules, subtotal]);
+
   // Hitung poin yang akan didapat dari pembelian saat ini
-  const discount = enableDiscount ? parseNumberFromDots(discountStr) : 0;
+  const parsedDiscountPercent = parseFloat(discountPercentStr) || 0;
+  const manualDiscount = enableDiscount
+    ? (discountType === 'percent'
+      ? Math.floor(subtotal * (parsedDiscountPercent / 100))
+      : parseNumberFromDots(discountStr))
+    : 0;
+  const discount = manualDiscount + globalDiscountAmount;
   const total = useMemo(() => Math.max(0, subtotal + tax - discount), [subtotal, tax, discount]);
   const amountPaid = parseNumberFromDots(amountPaidStr);
   const change = amountPaid > 0 ? amountPaid - total : 0;
-  const discountNoteSelectValue = isCustomDiscountNote
-    ? CUSTOM_DISCOUNT_NOTE_VALUE
-    : discountNoteOptions.includes(discountNote)
-      ? discountNote
-      : '';
+  const discountNoteSelectValue = discountNote;
 
   const handleCheckout = async () => {
     if (isSubmitting) return;
@@ -875,6 +940,17 @@ export default function POSPage() {
 
     const payloadCashierName = isEditMode && editTransactionData?.cashier_name ? editTransactionData.cashier_name : cashierName;
 
+    const adminDiscountNote = (enableDiscount && discountType === 'percent' && parsedDiscountPercent > 0)
+      ? `Diskon Admin ${parsedDiscountPercent}%`
+      : (enableDiscount && manualDiscount > 0) ? 'Diskon Admin' : '';
+      
+    let finalDiscountNoteParts = [];
+    if (globalDiscountAmount > 0) finalDiscountNoteParts.push(`Diskon Global ${appliedGlobalDiscountPercent}%`);
+    if (adminDiscountNote) finalDiscountNoteParts.push(adminDiscountNote);
+    if (discountNoteSelectValue) finalDiscountNoteParts.push(discountNoteSelectValue);
+    
+    const finalDiscountNote = finalDiscountNoteParts.join(' + ');
+
     const transactionPayload = {
       data: {
         customerId: finalCustomerId,
@@ -882,7 +958,7 @@ export default function POSPage() {
         paymentMethod: paymentMethod as any,
         outletId: validOutletId,
         discount,
-        discountNote: discountNote,
+        discountNote: finalDiscountNote,
         amountPaid: finalAmountPaid,
         remainingBalance: finalRemaining,
         paymentStatus: paymentStatus,
@@ -962,6 +1038,11 @@ export default function POSPage() {
           tax,
           discount,
           discountNote,
+          globalDiscountAmount,
+          appliedGlobalDiscountPercent,
+          manualDiscount,
+          parsedDiscountPercent,
+          discountType,
           total,
           amountPaid: finalAmountPaid,
           change,
@@ -991,6 +1072,11 @@ export default function POSPage() {
             tax,
             discount,
             discountNote,
+            globalDiscountAmount,
+            appliedGlobalDiscountPercent,
+            manualDiscount,
+            parsedDiscountPercent,
+            discountType,
             total,
             amountPaid: finalAmountPaid,
             change,
@@ -1462,6 +1548,67 @@ export default function POSPage() {
 
 
 
+            {/* Admin Discount */}
+            {enableDiscount && (
+              <div className="px-4 lg:px-3 pb-4 lg:pb-3 border-b border-slate-200 dark:border-slate-700 mb-4">
+                <div className="flex flex-col gap-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-normal text-slate-500 dark:text-slate-400 uppercase tracking-wider">Diskon Admin</label>
+                    <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-md">
+                      <button
+                        onClick={() => setDiscountType("nominal")}
+                        className={`px-3 py-1 text-xs font-medium rounded ${discountType === "nominal" ? "bg-white dark:bg-slate-700 shadow-sm text-primary" : "text-slate-500 hover:text-slate-700"}`}
+                      >
+                        Rp
+                      </button>
+                      <button
+                        onClick={() => setDiscountType("percent")}
+                        className={`px-3 py-1 text-xs font-medium rounded ${discountType === "percent" ? "bg-white dark:bg-slate-700 shadow-sm text-primary" : "text-slate-500 hover:text-slate-700"}`}
+                      >
+                        %
+                      </button>
+                    </div>
+                  </div>
+
+                  {discountType === "nominal" ? (
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 font-medium text-sm">Rp</span>
+                      <Input
+                        value={discountDisplay}
+                        onChange={(e) => {
+                          const val = formatNumberWithDots(e.target.value);
+                          setDiscountDisplay(val);
+                          setDiscountStr(val);
+                        }}
+                        placeholder="0"
+                        className="pl-9 h-10 lg:h-9"
+                      />
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={discountPercentStr}
+                        onChange={(e) => setDiscountPercentStr(e.target.value)}
+                        placeholder="0"
+                        className="pr-8 h-10 lg:h-9"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 font-medium text-sm">%</span>
+                    </div>
+                  )}
+
+                  <Input
+                    value={discountNote}
+                    onChange={(e) => setDiscountNote(e.target.value)}
+                    placeholder="Keterangan diskon (opsional)"
+                    className="h-10 lg:h-9 mt-1"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Tipe Pembayaran */}
             <div className="px-4 lg:px-3 pb-4 lg:pb-3">
               <div className="flex flex-col gap-2">
@@ -1623,6 +1770,24 @@ export default function POSPage() {
                   <span className="text-slate-500 dark:text-slate-400">Subtotal</span>
                   <span className="font-medium text-slate-900 dark:text-slate-100">{formatRupiah(subtotal)}</span>
                 </div>
+                {globalDiscountAmount > 0 && (
+                  <div className="flex justify-between text-sm text-emerald-600 dark:text-emerald-500">
+                    <span>Diskon Global ({appliedGlobalDiscountPercent}%)</span>
+                    <span className="font-medium">- {formatRupiah(globalDiscountAmount)}</span>
+                  </div>
+                )}
+                {manualDiscount > 0 && (
+                  <div className="flex justify-between text-sm text-emerald-600 dark:text-emerald-500">
+                    <span>Diskon Admin {discountType === 'percent' && parsedDiscountPercent > 0 ? `(${parsedDiscountPercent}%)` : ''}</span>
+                    <span className="font-medium">- {formatRupiah(manualDiscount)}</span>
+                  </div>
+                )}
+                {tax > 0 && (
+                  <div className="flex justify-between text-sm text-slate-500 dark:text-slate-400">
+                    <span>PPN ({ppnPercentage}%)</span>
+                    <span className="font-medium">+ {formatRupiah(tax)}</span>
+                  </div>
+                )}
                 <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
                   <span className="font-medium text-slate-700 dark:text-slate-200">TOTAL</span>
                   <span className="text-xl font-bold text-primary dark:text-primary-400">{formatRupiah(total)}</span>
@@ -1771,7 +1936,19 @@ export default function POSPage() {
                     <span className="text-slate-700 dark:text-slate-300">{formatRupiah(lastTransaction?.tax || 0)}</span>
                   </div>
                 )}
-                {(lastTransaction?.discount || 0) > 0 && (
+                {(lastTransaction?.globalDiscountAmount || 0) > 0 && (
+                  <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-500">
+                    <span>Diskon Global ({lastTransaction?.appliedGlobalDiscountPercent}%)</span>
+                    <span>-{formatRupiah(lastTransaction?.globalDiscountAmount)}</span>
+                  </div>
+                )}
+                {(lastTransaction?.manualDiscount || 0) > 0 && (
+                  <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-500">
+                    <span>Diskon Admin {lastTransaction?.discountType === 'percent' && lastTransaction?.parsedDiscountPercent > 0 ? `(${lastTransaction.parsedDiscountPercent}%)` : ''}</span>
+                    <span>-{formatRupiah(lastTransaction?.manualDiscount)}</span>
+                  </div>
+                )}
+                {(lastTransaction?.discount || 0) > 0 && !(lastTransaction?.globalDiscountAmount > 0 || lastTransaction?.manualDiscount > 0) && (
                   <div className="flex justify-between text-xs text-red-600 dark:text-red-400">
                     <span>Diskon {lastTransaction?.discountNote && `(${lastTransaction.discountNote})`}</span>
                     <span>-{formatRupiah(lastTransaction?.discount || 0)}</span>

@@ -237,6 +237,11 @@ export function formatReceipt(transaction: any): string {
     tax = 0,
     discount = 0,
     discountNote = '',
+    globalDiscountAmount,
+    appliedGlobalDiscountPercent,
+    manualDiscount,
+    parsedDiscountPercent,
+    discountType,
     total = 0,
     amountPaid = 0,
     change = 0,
@@ -345,7 +350,55 @@ export function formatReceipt(transaction: any): string {
 
   // Diskon dan poin yang digunakan (di bawah subtotal)
   if (discount > 0) {
-    receipt += formatLine('Diskon', formatPrice(discount), PAPER_WIDTH) + '\n';
+    let finalGlobalAmount = globalDiscountAmount;
+    let finalGlobalPercent = appliedGlobalDiscountPercent;
+    let finalAdminPercent = parsedDiscountPercent;
+    let hasGlobal = finalGlobalAmount > 0;
+    let hasAdminNote = false;
+    let finalManualAmount = manualDiscount !== undefined ? manualDiscount : discount;
+    let isPercentAdmin = discountType === 'percent';
+
+    // Parse from note if variables are missing
+    if (globalDiscountAmount === undefined && manualDiscount === undefined) {
+      const note = discountNote || '';
+      const globalMatch = note.match(/Diskon Global (\d+(\.\d+)?)%/);
+      if (globalMatch) {
+        finalGlobalPercent = parseFloat(globalMatch[1]);
+        finalGlobalAmount = Math.floor((subtotal || 0) * (finalGlobalPercent / 100));
+        hasGlobal = true;
+      }
+      
+      const adminMatch = note.match(/Diskon Admin (\d+(\.\d+)?)%/);
+      if (adminMatch) {
+        finalAdminPercent = parseFloat(adminMatch[1]);
+        isPercentAdmin = true;
+        hasAdminNote = true;
+      } else if (note.includes('Diskon Admin')) {
+        hasAdminNote = true;
+      }
+      
+      finalManualAmount = hasGlobal ? (discount - finalGlobalAmount) : discount;
+    } else {
+      hasAdminNote = finalManualAmount > 0;
+    }
+
+    // Output separated discounts if possible
+    if (hasGlobal && !hasAdminNote && finalManualAmount <= 0) {
+       // Only global
+       receipt += formatLine(`Diskon Global (${finalGlobalPercent}%)`, `-${formatPrice(finalGlobalAmount)}`, PAPER_WIDTH) + '\n';
+    } else if (hasGlobal || hasAdminNote) {
+       if (hasGlobal && finalGlobalAmount > 0) {
+          receipt += formatLine(`Diskon Global (${finalGlobalPercent}%)`, `-${formatPrice(finalGlobalAmount)}`, PAPER_WIDTH) + '\n';
+       }
+       if (finalManualAmount > 0) {
+          const adminLabel = `Diskon Admin${isPercentAdmin && finalAdminPercent > 0 ? ` (${finalAdminPercent}%)` : ''}`;
+          receipt += formatLine(adminLabel, `-${formatPrice(finalManualAmount)}`, PAPER_WIDTH) + '\n';
+       }
+    } else {
+       // Fallback for old transaction
+       const label = `Diskon${discountNote && !discountNote.includes('Diskon Global') && !discountNote.includes('Diskon Admin') ? ` (${discountNote})` : ''}`;
+       receipt += formatLine(label, `-${formatPrice(discount)}`, PAPER_WIDTH) + '\n';
+    }
   }
 
 

@@ -372,11 +372,14 @@ export default function DashboardPage() {
         const productId = item.product_id;
         const hpp = hppMap.get(productId);
         if (!hpp) return;
-        const qty = Number(item.quantity) || 0;
-        const sellPrice = Number(item.price) || 0;
-        trxGrossMargin += (sellPrice - hpp) * qty;
+        const cogs = Number(item.quantity) * hpp;
+        const revenue = Number(item.subtotal) || 0;
+        trxGrossMargin += (revenue - cogs);
         hasData = true;
       });
+
+      const trxDiscount = Number(trx.discount) || 0;
+      trxGrossMargin -= trxDiscount;
 
       // Process returns for this transaction
       let trxReturnMargin = 0;
@@ -471,9 +474,9 @@ export default function DashboardPage() {
         const productId = item.product_id;
         const hpp = hppMap.get(productId);
         if (!hpp) return;
-        const qty = Number(item.quantity) || 0;
-        const sellPrice = Number(item.price) || 0;
-        const marginVal = (sellPrice - hpp) * qty;
+        const cogs = Number(item.quantity) * hpp;
+        const revenue = Number(item.subtotal) || 0;
+        const marginVal = revenue - cogs;
 
         if (isToday) {
           todayMargin += marginVal;
@@ -481,6 +484,13 @@ export default function DashboardPage() {
           yesterdayMargin += marginVal;
         }
       });
+      
+      const trxDiscount = Number(trx.discount) || 0;
+      if (isToday) {
+        todayMargin -= trxDiscount;
+      } else if (isYesterday) {
+        yesterdayMargin -= trxDiscount;
+      }
     });
 
     // Subtract completed returns

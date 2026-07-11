@@ -2379,6 +2379,73 @@ export const useUpdateStoreSettings = () => {
   };
 };
 
+// ============== DISCOUNT SETTINGS ==============
+export const useDiscountSettings = () => {
+  const [data, setData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<any>(null);
+
+  const fetchSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('discount_settings')
+        .select('*')
+        .eq('id', 1)
+        .maybeSingle();
+      
+      if (error) {
+        if (error.code !== '42P01') { // Ignore missing table error
+          throw error;
+        }
+      }
+      if (data) {
+        setData(data);
+      } else {
+        setData({ global_discount_enabled: false, global_discount_rules: [] });
+      }
+    } catch (err) {
+      setError(err);
+      setData({ global_discount_enabled: false, global_discount_rules: [] });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSettings();
+    const handleSettingsChanged = () => fetchSettings();
+    window.addEventListener('discountSettingsChanged', handleSettingsChanged);
+    return () => window.removeEventListener('discountSettingsChanged', handleSettingsChanged);
+  }, []);
+
+  return { data, isLoading, error, refetch: fetchSettings };
+};
+
+export const useUpdateDiscountSettings = () => {
+  const [isPending, setIsPending] = useState(false);
+
+  return {
+    mutate: async (settings: any, options?: { onSuccess?: () => void; onError?: (err: any) => void }) => {
+      setIsPending(true);
+      try {
+        const { error } = await supabase
+          .from('discount_settings')
+          .upsert({ id: 1, ...settings }, { onConflict: 'id' });
+
+        if (error) throw error;
+        
+        window.dispatchEvent(new Event('discountSettingsChanged'));
+        if (options?.onSuccess) options.onSuccess();
+      } catch (err) {
+        if (options?.onError) options.onError(err);
+      } finally {
+        setIsPending(false);
+      }
+    },
+    isPending
+  };
+};
+
 // ============== OUTLETS ==============
 export const useListOutlets = () => {
   const [data, setData] = useState<any[]>([]);

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
-import { useListProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useListCategories, useCreateCategory, useUpdateCategory, useDeleteCategory, getListProductsQueryKey, getListCategoriesQueryKey, useListOutlets, useCreateStockMovement, useListStockMovements, useDeleteStockMovement, useDeleteAllStockMovements, useBulkSaveProductUoms } from "@workspace/api-client-react";
+import { useListProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useListCategories, useCreateCategory, useUpdateCategory, useDeleteCategory, getListProductsQueryKey, getListCategoriesQueryKey, useListOutlets, useCreateStockMovement, useListStockMovements, useDeleteStockMovement, useDeleteAllStockMovements, useBulkSaveProductUoms, useDiscountSettings, useUpdateDiscountSettings } from "@workspace/api-client-react";
 import { formatRupiah } from "@/lib/formatters";
 import { CachedImage } from "@/components/ui/cached-image";
 import { compressImage } from "@/lib/image-utils";
@@ -10,7 +10,7 @@ import { uploadProductImage, deleteProductImage, deleteProductImageByName, getPr
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Edit, Trash2, Package, FolderPlus, Upload, X, Image as ImageIcon, Store, Tag, AlertTriangle, SlidersHorizontal, ArrowUpDown, Clock, Layers, Archive, CheckCircle, Ruler, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Package, FolderPlus, Upload, X, Image as ImageIcon, Store, Tag, AlertTriangle, SlidersHorizontal, ArrowUpDown, Clock, Layers, Archive, CheckCircle, Ruler, ChevronLeft, ChevronRight, Download, Percent } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -132,7 +132,7 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<any>(null);
 
   // Tab & Stock Management States
-  const [activeTab, setActiveTab] = useState<'products' | 'stock' | 'discounts' | 'history'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'stock' | 'discounts' | 'history' | 'global-discount'>('products');
   const [stockStatusFilter, setStockStatusFilter] = useState<'all' | 'out' | 'low' | 'available'>('all');
   const [quickRestockProduct, setQuickRestockProduct] = useState<any>(null);
   const [quickRestockQty, setQuickRestockQty] = useState<number>(10);
@@ -142,6 +142,29 @@ export default function ProductsPage() {
   const [isDiscountDialogOpen, setIsDiscountDialogOpen] = useState(false);
   const [discountProduct, setDiscountProduct] = useState<any>(null);
   const [discountHpp, setDiscountHpp] = useState<string>(""); // HPP input for discount dialog
+
+  // Global Discount Settings State
+  const { data: discountSettingsData } = useDiscountSettings();
+  const updateDiscountSettings = useUpdateDiscountSettings();
+  const [isGlobalDiscountDialogOpen, setIsGlobalDiscountDialogOpen] = useState(false);
+  const [globalDiscountEnabled, setGlobalDiscountEnabled] = useState(false);
+  const [globalDiscountRules, setGlobalDiscountRules] = useState<{ minPurchase: string, percent: string }[]>([{ minPurchase: '', percent: '' }]);
+  const [globalDiscountLoaded, setGlobalDiscountLoaded] = useState(false);
+
+  // Initialize global discount form from DB when loaded
+  useEffect(() => {
+    if (discountSettingsData && !globalDiscountLoaded) {
+      setGlobalDiscountEnabled(discountSettingsData.global_discount_enabled ?? false);
+      const rules = discountSettingsData.global_discount_rules;
+      if (Array.isArray(rules) && rules.length > 0) {
+        setGlobalDiscountRules(rules.map((r: any) => ({
+          minPurchase: r.minPurchase ? formatNumberWithDots(r.minPurchase.toString()) : '',
+          percent: r.percent ? r.percent.toString() : ''
+        })));
+      }
+      setGlobalDiscountLoaded(true);
+    }
+  }, [discountSettingsData, globalDiscountLoaded]);
 
   // Stock stats calculation from currently loaded products list
   const stockStats = useMemo(() => {
@@ -255,7 +278,7 @@ export default function ProductsPage() {
         setImagePreview("");
       }
       setImageFile(null);
-      // UOM logic moved to discount dialog
+      // UOM logic moved to the discount dialog
     } else {
       setEditingProduct(null);
       setFormData({ name: "", price: "", categoryId: "none", allowedOutlets: ["all"], imageUrl: "", isActive: true, stockQuantity: "", outletPrices: {} });
@@ -365,18 +388,16 @@ export default function ProductsPage() {
         });
       }
 
-      group.tiers.forEach((tier: any) => {
-        uomsToSave.push({
-          unit_name: group.unit_name.toLowerCase().trim(),
-          conversion_factor: Number(group.conversion_factor) || 1,
-          price: group.price ? parseNumberFromDots(group.price) : null,
-          is_default: group.is_default,
-          discount_type: (tier.discount_value && Number(tier.discount_value) > 0) ? 'percent' : 'none',
-          discount_value: tier.discount_value ? Number(tier.discount_value) : 0,
-          min_qty: Number(tier.min_qty) || 1,
-          label: tier.discount_type === 'none' ? null : (tier.label || null),
-          outlet_prices: outletPricesNumeric
-        });
+      uomsToSave.push({
+        unit_name: group.unit_name.toLowerCase().trim(),
+        conversion_factor: Number(group.conversion_factor) || 1,
+        price: group.price ? parseNumberFromDots(group.price) : null,
+        is_default: group.is_default,
+        discount_type: 'none',
+        discount_value: 0,
+        min_qty: 1,
+        label: null,
+        outlet_prices: outletPricesNumeric
       });
     });
 
@@ -681,8 +702,8 @@ export default function ProductsPage() {
 
           // Tambahkan harga per area
           outlets.forEach((outlet: any) => {
-            const outletPrice = Number((uom.outlet_prices && uom.outlet_prices[outlet.id]) 
-              ? uom.outlet_prices[outlet.id] 
+            const outletPrice = Number((uom.outlet_prices && uom.outlet_prices[outlet.id])
+              ? uom.outlet_prices[outlet.id]
               : basePrice);
             rowData[`Harga (${outlet.name})`] = outletPrice;
           });
@@ -1213,7 +1234,17 @@ export default function ProductsPage() {
                   }`}
               >
                 <Tag className="w-5 h-5 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">Diskon & Satuan</span>
+                <span className="hidden sm:inline">Satuan & Harga Cabang</span>
+              </button>
+              <button
+                onClick={() => { setActiveTab('global-discount'); setPage(1); }}
+                className={`py-3 text-sm font-semibold border-b-2 transition-all relative flex items-center justify-center gap-2 flex-1 sm:flex-none ${activeTab === 'global-discount'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+              >
+                <Percent className="w-5 h-5 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Diskon Global</span>
               </button>
               <button
                 onClick={() => { setActiveTab('history'); setPage(1); }}
@@ -1833,8 +1864,8 @@ export default function ProductsPage() {
             <>
               <div className="mb-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Satuan & Diskon Grosir</h2>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Kelola varian satuan (dus, pack) dan promo grosiran</p>
+                  <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Satuan & Harga Cabang</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Kelola varian satuan (dus, pack) dan harga per cabang</p>
                 </div>
                 <div className="relative w-full sm:w-64">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />
@@ -1934,7 +1965,7 @@ export default function ProductsPage() {
                         </div>
                         <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                           <Button size="sm" variant="outline" onClick={() => handleOpenDiscountDialog(product)} className="w-full text-xs h-8">
-                            <Tag className="w-3.5 h-3.5 mr-1.5" /> Atur Satuan & Diskon
+                            <Tag className="w-3.5 h-3.5 mr-1.5" /> Atur Satuan & Harga Cabang
                           </Button>
                         </div>
                       </div>
@@ -2048,7 +2079,7 @@ export default function ProductsPage() {
                               </TableCell>
                               <TableCell className="text-right">
                                 <Button size="sm" variant="outline" onClick={() => handleOpenDiscountDialog(product)} className="h-8 text-xs font-medium">
-                                  <Tag className="w-3.5 h-3.5 mr-1.5" /> Atur Satuan & Diskon
+                                  <Tag className="w-3.5 h-3.5 mr-1.5" /> Atur Satuan & Harga Cabang
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -2091,6 +2122,130 @@ export default function ProductsPage() {
                 </div>
               )}
             </>
+          ) : activeTab === 'global-discount' ? (
+            <div className="max-w-3xl mx-auto py-6 space-y-6 w-full px-4 sm:px-0">
+              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Pengaturan Diskon Global</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Atur diskon otomatis berdasarkan total belanja pelanggan</p>
+                </div>
+              </div>
+
+              <Card className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
+                <CardContent className="p-6 space-y-6">
+                  <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                    <div>
+                      <h3 className="font-semibold text-slate-800 dark:text-slate-200">Aktifkan Diskon Global</h3>
+                      <p className="text-xs text-slate-500 mt-1">Diskon akan otomatis diterapkan pada transaksi kasir (POS)</p>
+                    </div>
+                    <Switch
+                      checked={globalDiscountEnabled}
+                      onCheckedChange={setGlobalDiscountEnabled}
+                    />
+                  </div>
+
+                  {globalDiscountEnabled && (
+                    <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Tingkat Diskon Global</label>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setGlobalDiscountRules([...globalDiscountRules, { minPurchase: '', percent: '' }]);
+                          }}
+                        >
+                          <Plus className="w-4 h-4 mr-1" />
+                          Tambah Tingkat
+                        </Button>
+                      </div>
+                      
+                      {globalDiscountRules.map((rule, idx) => (
+                        <div key={idx} className="flex gap-4 items-end bg-slate-50 dark:bg-slate-800/30 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
+                          <div className="flex-1 space-y-2">
+                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Minimal Belanja (Rp)</label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">Rp</span>
+                              <Input
+                                value={rule.minPurchase}
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/[^0-9]/g, '');
+                                  const newRules = [...globalDiscountRules];
+                                  newRules[idx].minPurchase = formatNumberWithDots(val);
+                                  setGlobalDiscountRules(newRules);
+                                }}
+                                className="pl-9 h-10"
+                                placeholder="Contoh: 300.000"
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="flex-1 space-y-2">
+                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Persentase Diskon (%)</label>
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={rule.percent}
+                                onChange={(e) => {
+                                  const newRules = [...globalDiscountRules];
+                                  newRules[idx].percent = e.target.value;
+                                  setGlobalDiscountRules(newRules);
+                                }}
+                                className="pr-9 h-10"
+                                placeholder="Contoh: 5"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">%</span>
+                            </div>
+                          </div>
+                          
+                          {globalDiscountRules.length > 1 && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-10 w-10 text-red-500 hover:text-red-600 hover:bg-red-50 flex-shrink-0"
+                              onClick={() => {
+                                const newRules = [...globalDiscountRules];
+                                newRules.splice(idx, 1);
+                                setGlobalDiscountRules(newRules);
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                      <p className="text-xs text-slate-500">Sistem akan otomatis memilih diskon dengan minimal belanja terbesar yang memenuhi total belanja pelanggan.</p>
+                    </div>
+                  )}
+
+                  <div className="pt-6 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                    <Button onClick={async () => {
+                      const rulesToSave = globalDiscountRules.map(r => ({
+                        minPurchase: parseNumberFromDots(r.minPurchase),
+                        percent: Number(r.percent)
+                      })).filter(r => r.minPurchase > 0 && r.percent > 0);
+                      await updateDiscountSettings.mutate({
+                        global_discount_enabled: globalDiscountEnabled,
+                        global_discount_rules: rulesToSave
+                      }, {
+                        onSuccess: () => {
+                          toast({ title: "Sukses", description: "Pengaturan Diskon Global berhasil disimpan." });
+                          setIsGlobalDiscountDialogOpen(false);
+                        },
+                        onError: (err: any) => {
+                          toast({ title: "Error", description: err?.message || "Gagal menyimpan pengaturan diskon.", variant: "destructive" });
+                        }
+                      });
+                    }}>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Simpan Pengaturan
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           ) : activeTab === 'history' ? (
             <HistoryTabContent isAdmin={isAdmin} />
           ) : null}
@@ -2146,41 +2301,7 @@ export default function ProductsPage() {
               <Input placeholder="Masukkan harga" value={formData.price} onChange={handlePriceChange} />
             </div>
 
-            {/* Outlet Prices */}
-            {outlets && outlets.length > 0 && (
-              <div className="space-y-4 pt-2">
-                <div>
-                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                    Harga Area Cabang
-                  </label>
-                  <p className="text-xs text-slate-400 mt-0.5">Kosongkan jika ingin menggunakan harga default.</p>
-                </div>
 
-                <div className="space-y-3 mt-2">
-                  {outlets?.map((outlet: any) => (
-                    <div key={outlet.id} className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block">{outlet.name}</label>
-                      <Input
-                        placeholder="Ikut Default"
-                        value={formData.outletPrices[outlet.id.toString()] || ""}
-                        onChange={(e) => {
-                          const val = formatNumberWithDots(e.target.value);
-                          setFormData(prev => ({
-                            ...prev,
-                            outletPrices: {
-                              ...prev.outletPrices,
-                              [outlet.id.toString()]: val
-                            }
-                          }));
-                          setHasChanges(true);
-                        }}
-                        className="border-0 border-b border-slate-200 dark:border-slate-700 rounded-none px-0 bg-transparent focus-visible:ring-0 focus-visible:border-primary shadow-none focus-visible:ring-offset-0 h-9 text-sm w-full"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Category */}
             <div className="space-y-2">
@@ -2235,9 +2356,9 @@ export default function ProductsPage() {
       <Dialog open={isDiscountDialogOpen} onOpenChange={setIsDiscountDialogOpen}>
         <DialogContent className="sm:max-w-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto scrollbar-hide">
           <DialogHeader>
-            <DialogTitle>Atur Satuan & Diskon Grosir</DialogTitle>
-            <DialogDescription className="text-lg font-bold text-slate-900 dark:text-white mt-1">
-              {discountProduct?.name}
+            <DialogTitle>Atur Satuan & Harga Cabang</DialogTitle>
+            <DialogDescription>
+              Atur konversi satuan dan harga per cabang.
             </DialogDescription>
           </DialogHeader>
 
@@ -2303,7 +2424,7 @@ export default function ProductsPage() {
             <div className="space-y-3 border border-slate-200 dark:border-slate-800 p-3 rounded-lg bg-slate-50/50 dark:bg-slate-900/50">
               <label className="text-sm font-medium flex items-center gap-2">
                 <Ruler className="w-4 h-4 text-slate-500" />
-                Satuan Ukur &amp; Diskon
+                Satuan Ukur &amp; Harga Cabang
               </label>
               <p className="text-xs text-slate-500 dark:text-slate-400 -mt-1">
                 Tentukan nama satuan terkecil (faktor konversi = 1) dan satuan lainnya.
@@ -2450,186 +2571,7 @@ export default function ProductsPage() {
                         </div>
                       )}
 
-                      {/* Tiers List */}
-                      {row.tiers && row.tiers.map((tier: any, tierIdx: number) => {
-                        const unitPrice = parseNumberFromDots(row.price || "0");
-                        const minQty = tier.min_qty || 1;
-                        const discVal = Number(tier.discount_value || 0);
-                        const totalBeforeDisc = unitPrice * minQty;
-                        const discountAmount = totalBeforeDisc * (discVal / 100);
-                        const totalAfterDisc = Math.max(0, totalBeforeDisc - discountAmount);
-
-                        return (
-                          <div key={tierIdx} className="flex flex-col border-t border-slate-100 dark:border-slate-800 pt-3 mt-2">
-                            <div className="flex flex-wrap sm:flex-nowrap items-end gap-2 sm:gap-3">
-                              <div className="flex-1 sm:w-20 space-y-1">
-                                <label className="text-[10px] font-medium text-slate-500 text-center block">Min. Beli</label>
-                                <div className="relative flex items-center">
-                                  <Input
-                                    type="text"
-                                    placeholder="1"
-                                    value={tier.min_qty}
-                                    onChange={(e) => {
-                                      const rawVal = e.target.value.replace(/[^0-9]/g, '');
-                                      const val = rawVal === '' ? '' : parseInt(rawVal);
-                                      const newRows = [...uomRows];
-                                      const updatedTiers = [...newRows[idx].tiers];
-                                      updatedTiers[tierIdx] = { ...updatedTiers[tierIdx], min_qty: val };
-                                      newRows[idx] = { ...newRows[idx], tiers: updatedTiers };
-                                      setUomRows(newRows);
-                                      setHasChanges(true);
-                                    }}
-                                    className={`h-8 text-sm text-center ${row.unit_name ? 'pr-8' : ''}`}
-                                  />
-                                  {row.unit_name && (
-                                    <span className="absolute right-2 text-[10px] text-slate-400 pointer-events-none truncate max-w-[35px] font-medium">{row.unit_name}</span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex-1 sm:w-24 space-y-1">
-                                <label className="text-[10px] font-medium text-slate-500 text-center block">Nilai Diskon (%)</label>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  placeholder="0"
-                                  value={tier.discount_value}
-                                  onChange={(e) => {
-                                    const newRows = [...uomRows];
-                                    const updatedTiers = [...newRows[idx].tiers];
-                                    updatedTiers[tierIdx] = { ...updatedTiers[tierIdx], discount_value: e.target.value };
-                                    newRows[idx] = { ...newRows[idx], tiers: updatedTiers };
-                                    setUomRows(newRows);
-                                    setHasChanges(true);
-                                  }}
-                                  className="h-8 text-sm text-center"
-                                />
-                              </div>
-                              <div className="w-full sm:flex-1 space-y-1">
-                                <label className="text-[10px] font-medium text-slate-500 text-center block">Label Keterangan</label>
-                                <Input
-                                  placeholder="Grosir 5 box..."
-                                  value={tier.label}
-                                  onChange={(e) => {
-                                    const newRows = [...uomRows];
-                                    const updatedTiers = [...newRows[idx].tiers];
-                                    updatedTiers[tierIdx] = { ...updatedTiers[tierIdx], label: e.target.value };
-                                    newRows[idx] = { ...newRows[idx], tiers: updatedTiers };
-                                    setUomRows(newRows);
-                                    setHasChanges(true);
-                                  }}
-                                  className="h-8 text-sm text-center"
-                                />
-                              </div>
-
-                              {row.tiers.length > 1 && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50 flex-shrink-0 mb-[1px]"
-                                  onClick={() => {
-                                    const newRows = [...uomRows];
-                                    const updatedTiers = [...newRows[idx].tiers];
-                                    updatedTiers.splice(tierIdx, 1);
-                                    newRows[idx] = { ...newRows[idx], tiers: updatedTiers };
-                                    setUomRows(newRows);
-                                    setHasChanges(true);
-                                  }}
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </Button>
-                              )}
-                            </div>
-
-                            {/* Summary Display */}
-                            {discVal > 0 && minQty > 0 && (
-                              <div className="mt-2 space-y-1">
-                                {/* Default UOM Price */}
-                                <div className="px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded text-xs flex items-center justify-between gap-2 w-full">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                      {minQty} {(row.unit_name || 'satuan').toUpperCase()}
-                                    </span>
-                                    <span className="text-slate-400 line-through text-[10px]">
-                                      {formatRupiah(totalBeforeDisc)}
-                                    </span>
-                                    <span className="font-bold text-emerald-700 dark:text-emerald-400">
-                                      {formatRupiah(totalAfterDisc)}
-                                    </span>
-                                  </div>
-                                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider shrink-0">
-                                    PUSAT
-                                  </span>
-                                </div>
-
-                                {/* Area UOM Prices */}
-                                {outlets?.map((outlet: any) => {
-                                  const getOutletProductBasePrice = (outletId: string) => {
-                                    if (discountProduct?.outlet_prices?.[outletId]) {
-                                      return Number(discountProduct.outlet_prices[outletId]);
-                                    }
-                                    return Number(discountProduct?.price || 0);
-                                  };
-
-                                  const getOutletUomPrice = (outletId: string) => {
-                                    const customPriceStr = row.outletPrices?.[outletId];
-                                    if (customPriceStr) {
-                                      return parseNumberFromDots(customPriceStr);
-                                    }
-                                    const defaultUomPriceStr = row.price;
-                                    if (defaultUomPriceStr) {
-                                      return parseNumberFromDots(defaultUomPriceStr);
-                                    }
-                                    return getOutletProductBasePrice(outletId) * (Number(row.conversion_factor) || 1);
-                                  };
-
-                                  const outletPrice = getOutletUomPrice(outlet.id.toString());
-                                  const outletTotalBefore = outletPrice * minQty;
-                                  const outletDiscountAmount = outletTotalBefore * (discVal / 100);
-                                  const outletTotalAfter = Math.max(0, outletTotalBefore - outletDiscountAmount);
-
-                                  return (
-                                    <div key={outlet.id} className="px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded text-xs flex items-center justify-between gap-2 w-full">
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                          {minQty} {(row.unit_name || 'satuan').toUpperCase()}
-                                        </span>
-                                        <span className="text-slate-400 line-through text-[10px]">
-                                          {formatRupiah(outletTotalBefore)}
-                                        </span>
-                                        <span className="font-bold text-blue-700 dark:text-blue-400">
-                                          {formatRupiah(outletTotalAfter)}
-                                        </span>
-                                      </div>
-                                      <span className="text-[10px] font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider shrink-0">
-                                        {outlet.name.toUpperCase()}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-
-                      {/* Add Tier Button */}
-                      <div className="flex justify-start mt-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-xs h-7"
-                          onClick={() => {
-                            const newRows = [...uomRows];
-                            const updatedTiers = [...newRows[idx].tiers, { discount_type: 'percent', discount_value: '', min_qty: 1, label: '' }];
-                            newRows[idx] = { ...newRows[idx], tiers: updatedTiers };
-                            setUomRows(newRows);
-                            setHasChanges(true);
-                          }}
-                        >
-                          <Plus className="w-3.5 h-3.5 mr-1" /> Tambah Tingkat Diskon
-                        </Button>
-                      </div>
+                      {/* Tiers List Removed */}
                     </div>
                   ))}
                 </div>

@@ -334,12 +334,65 @@ export default function TransactionDetailPage() {
                     <span>{formatRupiah(trx.tax)}</span>
                   </div>
                 ) : null}
-                {trx.discount && trx.discount > 0 ? (
-                  <div className="flex justify-between text-destructive">
-                    <span>Diskon</span>
-                    <span>-{formatRupiah(trx.discount)}</span>
-                  </div>
-                ) : null}
+                {(() => {
+                  if (!trx.discount || trx.discount <= 0) return null;
+                  
+                  let globalDiscountAmount = 0;
+                  let globalDiscountPercent = 0;
+                  let adminDiscountPercent = 0;
+                  let hasGlobalDiscount = false;
+                  let hasAdminPercent = false;
+                  let hasAdminNote = false;
+                  
+                  const note = trx.discount_note || '';
+                  
+                  // Parse Global Discount
+                  const globalMatch = note.match(/Diskon Global (\d+(\.\d+)?)%/);
+                  if (globalMatch) {
+                    globalDiscountPercent = parseFloat(globalMatch[1]);
+                    globalDiscountAmount = Math.floor((trx.subtotal || 0) * (globalDiscountPercent / 100));
+                    hasGlobalDiscount = true;
+                  }
+                  
+                  // Parse Admin Discount
+                  const adminMatch = note.match(/Diskon Admin (\d+(\.\d+)?)%/);
+                  if (adminMatch) {
+                    adminDiscountPercent = parseFloat(adminMatch[1]);
+                    hasAdminPercent = true;
+                    hasAdminNote = true;
+                  } else if (note.includes('Diskon Admin')) {
+                    hasAdminNote = true;
+                  }
+                  
+                  const manualDiscount = hasGlobalDiscount ? (trx.discount - globalDiscountAmount) : trx.discount;
+                  
+                  // If it's a completely old transaction without any structured notes
+                  if (!hasGlobalDiscount && !hasAdminNote) {
+                     return (
+                        <div className="flex justify-between text-destructive">
+                          <span>Diskon {note ? `(${note})` : ''}</span>
+                          <span>-{formatRupiah(trx.discount)}</span>
+                        </div>
+                     );
+                  }
+                  
+                  return (
+                    <>
+                      {globalDiscountAmount > 0 && (
+                        <div className="flex justify-between text-emerald-600 dark:text-emerald-500">
+                          <span>Diskon Global ({globalDiscountPercent}%)</span>
+                          <span>-{formatRupiah(globalDiscountAmount)}</span>
+                        </div>
+                      )}
+                      {manualDiscount > 0 && (
+                        <div className="flex justify-between text-emerald-600 dark:text-emerald-500">
+                          <span>Diskon Admin {hasAdminPercent ? `(${adminDiscountPercent}%)` : ''}</span>
+                          <span>-{formatRupiah(manualDiscount)}</span>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
 
                 <div className="flex justify-between font-bold text-sm sm:text-lg pt-3 sm:pt-4">
                   <span className="text-slate-900">TOTAL</span>

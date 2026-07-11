@@ -29,6 +29,7 @@ interface TransactionItem {
   kasMasuk?: number;
   sisaPiutang?: number;
   hpp?: number;
+  discount?: number;
   margin?: number;
 }
 
@@ -90,6 +91,7 @@ const DEFAULT_COL_WIDTHS: ExportColumn[] = [
   { header: "Qty", key: "Qty", width: 8 },
   { header: "Harga", key: "Harga", width: 15 },
   { header: "Total", key: "Total", width: 15 },
+  { header: "Diskon", key: "Diskon", width: 15 },
   { header: "Qty Retur", key: "Qty Retur", width: 10 },
   { header: "Nominal Retur", key: "Nominal Retur", width: 15 },
   { header: "Sisa Piutang", key: "Sisa Piutang", width: 15 },
@@ -97,7 +99,7 @@ const DEFAULT_COL_WIDTHS: ExportColumn[] = [
   { header: "HPP", key: "HPP", width: 15 },
   { header: "Margin", key: "Margin", width: 15 },
   { header: "Pembayaran", key: "Pembayaran", width: 15 },
-  { header: "Tipe Pembayaran", key: "Tipe Pembayaran", width: 15 },
+  { header: "Status Pembayaran", key: "Status Pembayaran", width: 20 },
   { header: "Jatuh Tempo", key: "Jatuh Tempo", width: 15 },
   { header: "Salesman", key: "Salesman", width: 15 },
   { header: "Area", key: "Area", width: 15 },
@@ -124,7 +126,7 @@ const CENTER_ALIGNED_KEYS = new Set([
   "Poin",
   "Bergabung Sejak",
   "Pembayaran",
-  "Tipe Pembayaran",
+  "Status Pembayaran",
   "Jatuh Tempo",
   "Area",
 ]);
@@ -444,6 +446,7 @@ function transformTransactions(
           Qty: formatExcelCount(qty),
           Harga: formatExcelRupiah(price),
           Total: formatExcelRupiah(subtotal),
+          Diskon: formatExcelRupiah(item.discount || 0),
           "Qty Retur": formatExcelCount(qtyReturn),
           "Nominal Retur": formatExcelRupiah(returnAmount),
           "Sisa Piutang": formatExcelRupiah(sisaPiutang),
@@ -453,7 +456,7 @@ function transformTransactions(
             Margin: formatExcelRupiah(margin),
           } : {}),
           Pembayaran: pembayaran,
-          "Tipe Pembayaran": tipePembayaran,
+          "Status Pembayaran": tipePembayaran,
           "Jatuh Tempo": jatuhTempoStr,
           Salesman: salesman,
           Area: area,
@@ -469,6 +472,7 @@ function transformTransactions(
         Qty: "-",
         Harga: "-",
         Total: "-",
+        Diskon: "-",
         "Qty Retur": "-",
         "Nominal Retur": "-",
         "Sisa Piutang": "-",
@@ -478,7 +482,7 @@ function transformTransactions(
           Margin: "-",
         } : {}),
         Pembayaran: pembayaran,
-        "Tipe Pembayaran": tipePembayaran,
+        "Status Pembayaran": tipePembayaran,
         "Jatuh Tempo": jatuhTempoStr,
         Salesman: salesman,
         Area: area,
@@ -505,7 +509,9 @@ export function mapApiTransactionsToExport(
 
   return (transactions || []).map((trx) => {
     const subtotal = Number(trx.subtotal) || 0;
-    const total = subtotal;
+    const tax = Number(trx.tax) || 0;
+    const discount = Number(trx.discount) || 0;
+    const total = Number(trx.total) || (subtotal - discount + tax);
 
     // Process returns for this transaction
     const trxReturns = returnsData.filter(r => String(r.transaction_id) === String(trx.id) && r.status === 'completed');
@@ -555,6 +561,14 @@ export function mapApiTransactionsToExport(
     const trxKasMasuk = Math.max(0, netTotal - trxRemaining);
     const paymentRatio = netTotal > 0 ? trxKasMasuk / netTotal : 0;
 
+    const trxDiscount = Number(trx.discount) || 0;
+
+    // First, find the total item subtotals to calculate proportions for trxDiscount
+    let sumItemSubtotals = 0;
+    rawItems.forEach(item => {
+      sumItemSubtotals += Number(item.subtotal) || (Number(item.price) * Number(item.quantity)) || 0;
+    });
+
     let totalHpp = 0;
     let totalMargin = 0;
 
@@ -565,22 +579,32 @@ export function mapApiTransactionsToExport(
 
       const price = Number(item.price) || 0;
       const quantity = Number(item.quantity) || 0;
-      const itemSubtotal = price * quantity;
+
+      const itemTotalBeforeDiscount = Math.round(price * quantity);
+      const dbSubtotal = Math.round(Number(item.subtotal) || itemTotalBeforeDiscount);
+
+      const proportion = sumItemSubtotals > 0 ? (dbSubtotal / sumItemSubtotals) : 0;
+      const itemGlobalDiscountShare = Math.round(trxDiscount * proportion);
+
+      const itemLevelDiscount = itemTotalBeforeDiscount - dbSubtotal;
+      const totalItemDiscount = itemLevelDiscount + itemGlobalDiscountShare;
+
+      const itemNetRevenue = dbSubtotal - itemGlobalDiscountShare;
 
       const rData = returnItemMap.get(key) || { qty: 0, amount: 0 };
-      const itemNet = Math.max(0, itemSubtotal - rData.amount);
+      const itemNetAfterReturn = Math.max(0, itemNetRevenue - Math.round(rData.amount));
 
-      const itemKasMasuk = itemNet * paymentRatio;
-      const itemSisaPiutang = itemNet - itemKasMasuk;
+      const itemKasMasuk = Math.round(itemNetAfterReturn * paymentRatio);
+      const itemSisaPiutang = itemNetAfterReturn - itemKasMasuk;
 
       const netQty = Math.max(0, quantity - rData.qty);
-      const hppPerUnit = hppMap.get(pId) || 0;
+      const hppPerUnit = Math.round(hppMap.get(pId) || 0);
 
-      const fullItemHpp = netQty * hppPerUnit;
-      const fullItemMargin = itemNet - fullItemHpp;
+      const fullItemHpp = Math.round(netQty * hppPerUnit);
+      const fullItemMargin = itemNetAfterReturn - fullItemHpp;
 
-      const itemHpp = fullItemHpp * paymentRatio;
-      const itemMargin = fullItemMargin * paymentRatio;
+      const itemHpp = Math.round(fullItemHpp * paymentRatio);
+      const itemMargin = Math.round(fullItemMargin * paymentRatio);
 
       totalHpp += itemHpp;
       totalMargin += itemMargin;
@@ -589,9 +613,10 @@ export function mapApiTransactionsToExport(
         productName: pName,
         price,
         quantity,
+        discount: totalItemDiscount,
         qtyReturn: rData.qty,
         returnAmount: rData.amount,
-        netTotal: itemNet,
+        netTotal: itemNetAfterReturn,
         kasMasuk: itemKasMasuk,
         sisaPiutang: itemSisaPiutang,
         hpp: itemHpp,
