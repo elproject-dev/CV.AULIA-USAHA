@@ -44,7 +44,9 @@ function AppRoutes() {
     // Intercept hash fragment for password recovery
     const hash = window.location.hash;
     if (hash && hash.includes("type=recovery") && location !== "/update-password") {
-      setLocation("/update-password" + hash);
+      // Use hard redirect to ensure GitHub Pages 404.html and index.html pick up the new route properly
+      const baseUrl = import.meta.env.BASE_URL;
+      window.location.replace(`${baseUrl}update-password${hash}`);
       return;
     }
 
