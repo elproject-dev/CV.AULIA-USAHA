@@ -51,14 +51,14 @@ function AppRoutes() {
     }
 
     if (isLoading) return;
-    
+
     // Check if current route is a public route
     const isPublicRoute = location === "/login" || location === "/register" || location === "/forgot-password" || location === "/update-password";
 
     if (!user && !isPublicRoute) {
       setLocation("/login");
     }
-    
+
     if (user && isPublicRoute && location !== "/update-password") {
       setLocation(getDefaultRoute(user));
     }
@@ -77,7 +77,7 @@ function AppRoutes() {
 
       if (isRootRoute || !canGoBack) {
         const currentTime = new Date().getTime();
-        
+
         if (currentTime - lastTimeBackPress < timePeriodToExit) {
           CapacitorApp.exitApp();
         } else {

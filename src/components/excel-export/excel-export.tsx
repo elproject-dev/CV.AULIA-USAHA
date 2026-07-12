@@ -418,7 +418,7 @@ function transformTransactions(
     const periodYear = getPeriodYear(trx.createdAt);
     const pembayaran = String(trx.paymentMethod || "-").toUpperCase();
     const tipePembayaranRaw = String(trx.paymentStatus || "-");
-    const tipePembayaran = tipePembayaranRaw === 'paid' ? 'Lunas' : tipePembayaranRaw === 'partial' ? 'Cicilan' : tipePembayaranRaw === 'unpaid' ? 'Belum Lunas' : tipePembayaranRaw;
+    const tipePembayaran = tipePembayaranRaw === 'paid' ? 'Lunas' : tipePembayaranRaw === 'partial' ? 'Cicilan' : tipePembayaranRaw === 'unpaid' ? 'Tempo Penuh' : tipePembayaranRaw;
 
     let jatuhTempoStr = "-";
     if (tipePembayaranRaw === 'partial' || tipePembayaranRaw === 'unpaid') {
