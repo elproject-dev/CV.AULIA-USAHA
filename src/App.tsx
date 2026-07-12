@@ -41,6 +41,13 @@ function AppRoutes() {
   const { toast } = useToast();
 
   useEffect(() => {
+    // Intercept hash fragment for password recovery
+    const hash = window.location.hash;
+    if (hash && hash.includes("type=recovery") && location !== "/update-password") {
+      setLocation("/update-password" + hash);
+      return;
+    }
+
     if (isLoading) return;
     
     // Check if current route is a public route
