@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useCountUp } from "@/hooks/useCountUp";
 import { Sidebar } from "@/components/layout/Sidebar";
-import { useListReceivables, useListTransactionPayments, useCreateTransactionPayment, useConfirmTransactionPayment, useListPendingPayments, useGetTransaction, useDeleteTransaction } from "@workspace/api-client-react";
+import { useListReceivables, useListTransactionPayments, useCreateTransactionPayment, useConfirmTransactionPayment, useListPendingPayments, useGetTransaction, useDeleteTransaction, useStoreSettings } from "@workspace/api-client-react";
 import { formatRupiah, formatInvoiceNumber, formatSimpleDate } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,38 +55,17 @@ export default function ReceivablesPage() {
   const isAdmin = isAdminMode(user) || user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
   const [showDownloadDialog, setShowDownloadDialog] = useState(false);
   const [search, setSearch] = useState("");
-  const [storeInfo, setStoreInfo] = useState(() => ({
-    name: localStorage.getItem('storeName') || 'CV.AULIA USAHA',
-    address: localStorage.getItem('storeAddress') || 'Jl. Condongcatur No.123 Yk',
-    phone: localStorage.getItem('storePhone') || '',
-    footer: localStorage.getItem('footerMessage') || 'Terima Kasih Sudah Melakukan Order',
-    bankName: localStorage.getItem('storeBankName') || 'BCA',
-    bankAccount: localStorage.getItem('storeBankAccount') || '4451377137',
-    bankAccountName: localStorage.getItem('storeBankAccountName') || 'AULIA USAHA'
-  }));
+  const { data: storeSettingsData } = useStoreSettings();
 
-  useEffect(() => {
-    const syncStoreInfo = () => {
-      setStoreInfo({
-        name: localStorage.getItem('storeName') || 'CV.AULIA USAHA',
-        address: localStorage.getItem('storeAddress') || 'Jl. Condongcatur No.123 Yk',
-        phone: localStorage.getItem('storePhone') || '',
-        footer: localStorage.getItem('footerMessage') || 'Terima Kasih Sudah Melakukan Order',
-        bankName: localStorage.getItem('storeBankName') || 'BCA',
-        bankAccount: localStorage.getItem('storeBankAccount') || '4451377137',
-        bankAccountName: localStorage.getItem('storeBankAccountName') || 'AULIA USAHA'
-      });
-    };
-    syncStoreInfo();
-    window.addEventListener('storage', syncStoreInfo);
-    window.addEventListener('storeSettingsChanged', syncStoreInfo);
-    window.addEventListener('storeNameChanged', syncStoreInfo);
-    return () => {
-      window.removeEventListener('storage', syncStoreInfo);
-      window.removeEventListener('storeSettingsChanged', syncStoreInfo);
-      window.removeEventListener('storeNameChanged', syncStoreInfo);
-    };
-  }, []);
+  const storeInfo = {
+    name: storeSettingsData?.name || 'CV.AULIA USAHA',
+    address: storeSettingsData?.address || 'Jl. Condongcatur No.123 Yk',
+    phone: storeSettingsData?.phone || '',
+    footer: storeSettingsData?.footer_message || 'Terima Kasih Sudah Melakukan Order',
+    bankName: storeSettingsData?.bank_name || 'BCA',
+    bankAccount: storeSettingsData?.bank_account || '4451377137',
+    bankAccountName: storeSettingsData?.bank_account_name || 'AULIA USAHA'
+  };
 
   const handlePrintInvoice = (trx: any) => {
     const iframe = document.createElement('iframe');
@@ -198,7 +177,7 @@ export default function ReceivablesPage() {
                 </td>
                 <td style="width: 40%; text-align: right; vertical-align: top;">
                   <h1 class="invoice-title">FAKTUR PENAGIHAN</h1>
-                  <div style="font-size: 10px; font-weight: 700; color: #475569; margin-top: 4px; display: inline-flex; gap: 6px; justify-content: flex-end; align-items: center; width: 100%;">
+                  <div style="font-size: 12px; font-weight: 700; color: #475569; margin-top: 4px; display: inline-flex; gap: 6px; justify-content: flex-end; align-items: center; width: 100%;">
                     <span class="invoice-copy-badge">${copyLabel}</span>
                     <span class="invoice-status-badge ${badgeClass}">${statusLabel}</span>
                   </div>
@@ -211,7 +190,7 @@ export default function ReceivablesPage() {
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 8px;">
               <tr>
                 <td style="width: 70%; vertical-align: top;">
-                  <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                  <table style="width: 100%; border-collapse: collapse; font-size: 14.4px;">
                     <tr>
                       <td style="width: 1%; white-space: nowrap; padding: 2px 0; color: #475569; font-weight: 500;">Kepada Yth.</td>
                       <td style="width: 1%; white-space: nowrap; padding: 2px 8px 2px 4px; color: #475569;">:</td>
@@ -225,7 +204,7 @@ export default function ReceivablesPage() {
                     <tr>
                       <td style="width: 1%; white-space: nowrap; padding: 2px 0; color: #475569; font-weight: 500;">Alamat</td>
                       <td style="width: 1%; white-space: nowrap; padding: 2px 8px 2px 4px; color: #475569;">:</td>
-                      <td style="padding: 2px 0; font-size: 11.4px; line-height: 1.2;">
+                      <td style="padding: 2px 0; font-size: 13.68px; line-height: 1.2;">
                         ${trx.customers?.address || trx.customer?.address || trx.customer_address || '-'}
                         ${trx.customers?.district || trx.customer?.district || trx.customer_district ? `, ${trx.customers?.district || trx.customer?.district || trx.customer_district}` : ''}
                         ${trx.customers?.city || trx.customer?.city || trx.customer_city ? `, ${trx.customers?.city || trx.customer?.city || trx.customer_city}` : ''}
@@ -235,7 +214,7 @@ export default function ReceivablesPage() {
                 </td>
                 <td style="width: 2%;"></td>
                 <td style="width: 28%; vertical-align: top;">
-                  <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                  <table style="width: 100%; border-collapse: collapse; font-size: 14.4px;">
                     <tr>
                       <td style="width: 1%; white-space: nowrap; padding: 2px 0; color: #475569; font-weight: 500;">No. Invoice</td>
                       <td style="width: 1%; white-space: nowrap; padding: 2px 8px 2px 4px; color: #475569;">:</td>
@@ -260,7 +239,7 @@ export default function ReceivablesPage() {
               <thead>
                 <tr>
                   <th style="width: 5%; text-align: center;">No</th>
-                  <th style="width: 44%; text-align: left;">Nama Produk / Item</th>
+                  <th style="width: 44%; text-align: left;">Nama Produk</th>
                   <th style="width: 15%; text-align: center;">Qty</th>
                   <th style="width: 15%; text-align: right;">Harga Satuan</th>
                   <th style="width: 20%; text-align: right;">Subtotal</th>
@@ -274,24 +253,30 @@ export default function ReceivablesPage() {
             <table style="width: 100%; border-collapse: collapse; margin-top: 4px;">
               <tr>
                 <td style="width: 70%; vertical-align: top;">
-                  <div class="reason-section" style="font-size: 10.2px; border: 1px solid #e2e8f0; padding: 10px 8px; border-radius: 4px; background-color: #f8fafc;">
+                  <div class="reason-section" style="font-size: 12.24px; border: 1px solid #e2e8f0; padding: 10px 8px; border-radius: 4px; background-color: #f8fafc;">
                     <strong>Jatuh Tempo: ${trx.due_date ? formatSimpleDate(trx.due_date) : '-'}</strong>
                   </div>
                 </td>
                 <td style="width: 2%;"></td>
                 <td style="width: 28%; vertical-align: top;">
-                  <table style="width: 100%; border-collapse: collapse; font-size: 11.4px;">
+                  <table style="width: 100%; border-collapse: collapse; font-size: 13.68px;">
                     <tr>
                       <td style="text-align: left; padding: 2px 0; color: #475569; white-space: nowrap;">Subtotal</td>
                       <td style="text-align: right; padding: 2px 0; font-weight: 600;">${formatRupiah(trx.subtotal || 0)}</td>
                     </tr>
+                    ${trx.discount ? `
+                    <tr>
+                      <td style="text-align: left; padding: 2px 0; color: #475569; white-space: nowrap;">Diskon</td>
+                      <td style="text-align: right; padding: 2px 0; font-weight: 600; color: #ea580c;">${formatRupiah(trx.discount)}</td>
+                    </tr>
+                    ` : ''}
                     <tr>
                       <td style="text-align: left; padding: 2px 0; color: #475569; white-space: nowrap;">Sudah Dibayar</td>
                       <td style="text-align: right; padding: 2px 0; font-weight: 600; color: #16a34a;">${formatRupiah(totalPaid)}</td>
                     </tr>
                     <tr style="border-top: 1px solid #cbd5e1;">
                       <td style="text-align: left; padding: 4px 0; font-weight: 700; color: #0f172a; white-space: nowrap;">SISA TAGIHAN</td>
-                      <td style="text-align: right; padding: 4px 0; font-weight: 800; color: #ea580c; font-size: 13.2px;">${formatRupiah(trx.remaining_balance || 0)}</td>
+                      <td style="text-align: right; padding: 4px 0; font-weight: 800; color: #ea580c; font-size: 15.84px;">${formatRupiah(trx.remaining_balance || 0)}</td>
                     </tr>
                   </table>
                 </td>
@@ -302,14 +287,14 @@ export default function ReceivablesPage() {
           <div>
             <table style="width: 100%; margin-top: 12px; border-collapse: collapse;">
               <tr>
-                <td style="width: 50%; text-align: center; font-size: 12px; color: #334155; vertical-align: top;">
+                <td style="width: 50%; text-align: center; font-size: 14.4px; color: #334155; vertical-align: top;">
                   <div>Penerima,</div>
                   <div style="height: 32px;"></div>
                   <div style="color: #0f172a; display: inline-block; min-width: 130px; padding-top: 2px; font-family: monospace;">
                     ( _________________ )
                   </div>
                 </td>
-                <td style="width: 50%; text-align: center; font-size: 12px; color: #334155; vertical-align: top;">
+                <td style="width: 50%; text-align: center; font-size: 14.4px; color: #334155; vertical-align: top;">
                   <div>Hormat Kami,</div>
                   <div style="height: 32px;"></div>
                   <div style="color: #0f172a; display: inline-block; min-width: 130px; padding-top: 2px; font-family: monospace;">
@@ -319,14 +304,14 @@ export default function ReceivablesPage() {
               </tr>
             </table>
             
-            <div style="text-align: left; font-size: 9.6px; font-style: italic; color: #475569; margin-top: 10px; line-height: 1.2; width: 100%;">
+            <div style="text-align: left; font-size: 11.52px; font-style: italic; color: #475569; margin-top: 10px; line-height: 1.2; width: 100%;">
               Pembayaran Transfer melalui Bank: <strong>${storeInfo?.bankName || 'BCA'} ${storeInfo?.bankAccount || '4451377137'}</strong> a/n <strong>${storeInfo?.bankAccountName || 'AULIA USAHA'}</strong>
             </div>
             
             <div class="footer-divider" style="border-top: 1px solid #cbd5e1; margin-top: 6px; margin-bottom: 2px;"></div>
             <table style="width: 100%; border-collapse: collapse;">
               <tr>
-                <td style="text-align: center; font-size: 10.2px; color: #64748b;">
+                <td style="text-align: center; font-size: 12.24px; color: #64748b;">
                   ${storeInfo?.footer || 'Terima Kasih Sudah Melakukan Order'}
                 </td>
               </tr>
@@ -361,7 +346,7 @@ export default function ReceivablesPage() {
             font-weight: bold !important; /* Semua teks ditebalkan */
           }
           body {
-            font-size: 13.2px;
+            font-size: 15.84px;
             font-weight: 600;
             line-height: 1.35;
             margin: 0;
@@ -384,7 +369,7 @@ export default function ReceivablesPage() {
           .cut-divider { display: none; }
           .info-table { width: 100%; border-collapse: collapse; }
           .company-name {
-            font-size: 15.6px;
+            font-size: 18.72px;
             font-weight: 800;
             color: #0f172a;
             margin: 0;
@@ -393,11 +378,11 @@ export default function ReceivablesPage() {
           }
           .company-address, .company-contact {
             margin: 0;
-            font-size: 10.2px;
+            font-size: 12.24px;
             color: #475569;
           }
           .invoice-title {
-            font-size: 18px;
+            font-size: 21.6px;
             font-weight: 800;
             color: #0f172a;
             margin: 0;
@@ -408,7 +393,7 @@ export default function ReceivablesPage() {
           }
           .invoice-status-badge {
             display: inline-block;
-            font-size: 9px;
+            font-size: 10.8px;
             font-weight: 700;
             letter-spacing: 0.05em;
             padding: 1px 5px;
@@ -427,7 +412,7 @@ export default function ReceivablesPage() {
           }
           .items-table th {
             color: #000000 !important;
-            font-size: 10.2px;
+            font-size: 12.24px;
             font-weight: bold;
             text-transform: uppercase;
             padding: 4px 6px;
@@ -437,7 +422,7 @@ export default function ReceivablesPage() {
           .items-table td {
             padding: 4px 6px;
             border-bottom: none;
-            font-size: 10.8px;
+            font-size: 12.96px;
             vertical-align: middle;
             color: #000000 !important;
           }
@@ -449,7 +434,7 @@ export default function ReceivablesPage() {
             padding: 2px 6px;
           }
           .reason-section {
-            font-size: 10.2px;
+            font-size: 12.24px;
             line-height: 1.3;
             color: #475569;
             margin-top: 2px;
@@ -1241,95 +1226,95 @@ export default function ReceivablesPage() {
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                    <TableRow className="bg-slate-50 dark:bg-slate-800/50">
-                      <TableHead className="whitespace-nowrap w-[130px]">ID Transaksi</TableHead>
-                      <TableHead className="whitespace-nowrap min-w-[120px]">Tgl Transaksi</TableHead>
-                      <TableHead className="whitespace-nowrap min-w-[180px]">Pelanggan</TableHead>
-                      <TableHead className="whitespace-nowrap text-center min-w-[130px]">Jatuh Tempo</TableHead>
-                      <TableHead className="whitespace-nowrap text-right min-w-[140px]">Total Transaksi</TableHead>
-                      <TableHead className="whitespace-nowrap text-right min-w-[140px]">Sisa Tagihan</TableHead>
-                      <TableHead className="whitespace-nowrap text-center min-w-[130px]">Sales</TableHead>
-                      <TableHead className="whitespace-nowrap text-center min-w-[110px]">Status</TableHead>
-                      <TableHead className="whitespace-nowrap text-right min-w-[100px]">Aksi</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={9} className="py-12">
-                          <div className="flex flex-col items-center justify-center gap-3 text-slate-500">
-                            <div className="w-8 h-8 border-3 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-                            <p className="text-xs font-medium">Memuat...</p>
-                          </div>
-                        </TableCell>
+                      <TableRow className="bg-slate-50 dark:bg-slate-800/50">
+                        <TableHead className="whitespace-nowrap w-[130px]">ID Transaksi</TableHead>
+                        <TableHead className="whitespace-nowrap min-w-[120px]">Tgl Transaksi</TableHead>
+                        <TableHead className="whitespace-nowrap min-w-[180px]">Pelanggan</TableHead>
+                        <TableHead className="whitespace-nowrap text-center min-w-[130px]">Jatuh Tempo</TableHead>
+                        <TableHead className="whitespace-nowrap text-right min-w-[140px]">Total Transaksi</TableHead>
+                        <TableHead className="whitespace-nowrap text-right min-w-[140px]">Sisa Tagihan</TableHead>
+                        <TableHead className="whitespace-nowrap text-center min-w-[130px]">Sales</TableHead>
+                        <TableHead className="whitespace-nowrap text-center min-w-[110px]">Status</TableHead>
+                        <TableHead className="whitespace-nowrap text-right min-w-[100px]">Aksi</TableHead>
                       </TableRow>
-                    ) : filteredReceivables?.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={9} className="text-center py-12">
-                          {activeTab === 'outstanding' ? (
-                            <div className="flex flex-col items-center justify-center text-slate-500">
-                              <CheckCircle2 className="w-12 h-12 text-emerald-400 mb-3" />
-                              <p className="text-lg font-medium text-slate-900 dark:text-white">Semua Piutang Lunas!</p>
-                              <p className="text-sm">Tidak ada pelanggan yang menunggak pembayaran saat ini.</p>
+                    </TableHeader>
+                    <TableBody>
+                      {isLoading ? (
+                        <TableRow>
+                          <TableCell colSpan={9} className="py-12">
+                            <div className="flex flex-col items-center justify-center gap-3 text-slate-500">
+                              <div className="w-8 h-8 border-3 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                              <p className="text-xs font-medium">Memuat...</p>
                             </div>
-                          ) : (
-                            <div className="flex flex-col items-center justify-center text-slate-500">
-                              <FileText className="w-12 h-12 text-slate-300 mb-3" />
-                              <p className="text-lg font-medium text-slate-900 dark:text-white">Belum Ada Riwayat Pelunasan</p>
-                              <p className="text-sm">Riwayat pelunasan piutang yang selesai akan muncul di sini.</p>
-                            </div>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      paginatedReceivables?.map((trx: any) => {
-                        const isOverdue = isDateOverdue(trx.due_date);
-                        return (
-                          <TableRow key={trx.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onClick={() => handleRowClick(trx)}>
-                            <TableCell className="font-mono text-xs font-bold text-slate-900 dark:text-white whitespace-nowrap">{formatInvoiceNumber(trx.id)}</TableCell>
-                            <TableCell className="text-slate-500 text-sm whitespace-nowrap">
-                              {formatSimpleDate(trx.created_at)}
-                            </TableCell>
-                            <TableCell className="font-medium whitespace-nowrap truncate max-w-[200px]">
-                              {trx.customer?.name || trx.customer_name || '-'}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap text-center">
-                              <div className={`flex items-center justify-center gap-1.5 text-sm ${isOverdue && trx.payment_status !== 'paid' ? 'text-red-600 dark:text-red-400 font-medium' : 'text-slate-600 dark:text-slate-400'}`}>
-                                {isOverdue && trx.payment_status !== 'paid' && <AlertCircle className="w-3.5 h-3.5" />}
-                                {formatSimpleDate(trx.due_date)}
+                          </TableCell>
+                        </TableRow>
+                      ) : filteredReceivables?.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={9} className="text-center py-12">
+                            {activeTab === 'outstanding' ? (
+                              <div className="flex flex-col items-center justify-center text-slate-500">
+                                <CheckCircle2 className="w-12 h-12 text-emerald-400 mb-3" />
+                                <p className="text-lg font-medium text-slate-900 dark:text-white">Semua Piutang Lunas!</p>
+                                <p className="text-sm">Tidak ada pelanggan yang menunggak pembayaran saat ini.</p>
                               </div>
-                            </TableCell>
-                            <TableCell className="text-right font-medium whitespace-nowrap">{formatRupiah((trx.subtotal || 0) + (trx.tax || 0) - (trx.discount || 0))}</TableCell>
-                            <TableCell className={`text-right font-bold whitespace-nowrap ${trx.payment_status === 'paid' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{formatRupiah(trx.remaining_balance)}</TableCell>
-                            <TableCell className="text-center font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap truncate max-w-[130px]">{trx.cashier_name || '-'}</TableCell>
-                            <TableCell className="text-center whitespace-nowrap">{getStatusBadge(trx.payment_status)}</TableCell>
-                            <TableCell className="text-right whitespace-nowrap">
-                              {pendingTransactionIds.has(trx.id) ? (
-                                <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                                  Menunggu
-                                </span>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  variant={activeTab === 'history' ? "outline" : "default"}
-                                  className={
-                                    activeTab === 'outstanding'
-                                      ? "bg-emerald-600 hover:bg-emerald-700 !text-white shadow-md shadow-emerald-600/20 hover:shadow-lg hover:shadow-emerald-600/30 hover:-translate-y-0.5 active:translate-y-0 duration-200 border-0 transition-all cursor-pointer !font-bold tracking-wide"
-                                      : ""
-                                  }
-                                  onClick={(e) => { e.stopPropagation(); handleOpenPayment(trx); }}
-                                >
-                                  {activeTab === 'history' ? "Detail" : "Bayar"}
-                                </Button>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center text-slate-500">
+                                <FileText className="w-12 h-12 text-slate-300 mb-3" />
+                                <p className="text-lg font-medium text-slate-900 dark:text-white">Belum Ada Riwayat Pelunasan</p>
+                                <p className="text-sm">Riwayat pelunasan piutang yang selesai akan muncul di sini.</p>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        paginatedReceivables?.map((trx: any) => {
+                          const isOverdue = isDateOverdue(trx.due_date);
+                          return (
+                            <TableRow key={trx.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onClick={() => handleRowClick(trx)}>
+                              <TableCell className="font-mono text-xs font-bold text-slate-900 dark:text-white whitespace-nowrap">{formatInvoiceNumber(trx.id)}</TableCell>
+                              <TableCell className="text-slate-500 text-sm whitespace-nowrap">
+                                {formatSimpleDate(trx.created_at)}
+                              </TableCell>
+                              <TableCell className="font-medium whitespace-nowrap truncate max-w-[200px]">
+                                {trx.customer?.name || trx.customer_name || '-'}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap text-center">
+                                <div className={`flex items-center justify-center gap-1.5 text-sm ${isOverdue && trx.payment_status !== 'paid' ? 'text-red-600 dark:text-red-400 font-medium' : 'text-slate-600 dark:text-slate-400'}`}>
+                                  {isOverdue && trx.payment_status !== 'paid' && <AlertCircle className="w-3.5 h-3.5" />}
+                                  {formatSimpleDate(trx.due_date)}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right font-medium whitespace-nowrap">{formatRupiah((trx.subtotal || 0) + (trx.tax || 0) - (trx.discount || 0))}</TableCell>
+                              <TableCell className={`text-right font-bold whitespace-nowrap ${trx.payment_status === 'paid' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{formatRupiah(trx.remaining_balance)}</TableCell>
+                              <TableCell className="text-center font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap truncate max-w-[130px]">{trx.cashier_name || '-'}</TableCell>
+                              <TableCell className="text-center whitespace-nowrap">{getStatusBadge(trx.payment_status)}</TableCell>
+                              <TableCell className="text-right whitespace-nowrap">
+                                {pendingTransactionIds.has(trx.id) ? (
+                                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                    Menunggu
+                                  </span>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant={activeTab === 'history' ? "outline" : "default"}
+                                    className={
+                                      activeTab === 'outstanding'
+                                        ? "bg-emerald-600 hover:bg-emerald-700 !text-white shadow-md shadow-emerald-600/20 hover:shadow-lg hover:shadow-emerald-600/30 hover:-translate-y-0.5 active:translate-y-0 duration-200 border-0 transition-all cursor-pointer !font-bold tracking-wide"
+                                        : ""
+                                    }
+                                    onClick={(e) => { e.stopPropagation(); handleOpenPayment(trx); }}
+                                  >
+                                    {activeTab === 'history' ? "Detail" : "Bayar"}
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
                 </div>
               </div>
             </>

@@ -3420,7 +3420,7 @@ export const useListReturns = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('sales_returns')
-        .select('*, customers(name, phone, address, district, city), sales_return_items(*, products(image_url, product_uoms(*)), transaction_items(conversion_factor))')
+        .select('*, customers(name, phone, address, district, city), transactions(customer_name, customer_phone, customer_address), sales_return_items(*, products(image_url, product_uoms(*)), transaction_items(conversion_factor))')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data;

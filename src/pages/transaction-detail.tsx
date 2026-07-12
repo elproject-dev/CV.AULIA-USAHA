@@ -304,7 +304,7 @@ export default function TransactionDetailPage() {
                   <span className="font-medium text-right">{trx.customers?.name || "-"}</span>
                 </div>
                 <div className="flex justify-between text-xs sm:text-sm">
-                  <span className="text-slate-500">Metode</span>
+                  <span className="text-slate-500">Metode Pembayaran</span>
                   <span className="font-medium">{getPaymentLabel(trx.payment_method)}</span>
                 </div>
               </div>
@@ -395,8 +395,8 @@ export default function TransactionDetailPage() {
                 })()}
 
                 <div className="flex justify-between font-bold text-sm sm:text-lg pt-3 sm:pt-4">
-                  <span className="text-slate-900">TOTAL</span>
-                  <span className="text-primary">{formatRupiah(total)}</span>
+                  <span className="text-slate-900">GRAND TOTAL</span>
+                  <span className="text-slate-900">{formatRupiah(total)}</span>
                 </div>
               </div>
 

@@ -1161,7 +1161,7 @@ export default function POSPage() {
           {isEditMode && (
             <div className="bg-amber-100 text-amber-900 p-2 text-sm font-medium text-center shadow-sm">
               <AlertTriangle className="w-4 h-4 inline-block mb-0.5 mr-2" />
-              Mode Edit Transaksi #{editTransactionData?.id ? formatInvoiceNumber(editTransactionData.id) : editId}
+              Mode Edit Transaksi #{editTransactionData?.id ? formatInvoiceNumber(editTransactionData.id) : editId}{editTransactionData?.cashier_name ? ` - ${editTransactionData.cashier_name}` : ''}
             </div>
           )}
 
