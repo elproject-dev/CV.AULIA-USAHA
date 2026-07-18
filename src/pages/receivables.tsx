@@ -170,7 +170,7 @@ export default function ReceivablesPage() {
                       <td style="vertical-align: middle; border: none; padding: 0; text-align: left;">
                         <div class="company-name">${storeName}</div>
                         ${storeAddress ? `<div class="company-address">${storeAddress}</div>` : ''}
-                        ${storePhone ? `<div class="company-contact">Telp: ${storePhone}</div>` : ''}
+                        ${storePhone ? `<div class="company-contact">Telp : ${storePhone}</div>` : ''}
                       </td>
                     </tr>
                   </table>
@@ -351,8 +351,8 @@ export default function ReceivablesPage() {
           * {
             box-sizing: border-box;
             color: #000000 !important; /* WAJIB HITAM PEKAT agar jelas di printer Dot Matrix */
-            font-family: Arial, Helvetica, sans-serif !important; /* Font standar sistem lebih tajam di dot matrix */
-            font-weight: bold !important; /* Semua teks ditebalkan */
+            font-family: Helvetica, Arial, sans-serif !important; /* Font standar faktur dot matrix */
+            font-weight: 900 !important; /* Semua teks ditebalkan */
           }
           body {
             font-size: 15.84px;

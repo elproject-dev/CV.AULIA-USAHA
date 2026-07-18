@@ -496,7 +496,7 @@ export default function SuppliersPage() {
                       <td style="vertical-align: middle; border: none; padding: 0; text-align: left;">
                         <div class="company-name">${storeName}</div>
                         ${storeAddress ? `<div class="company-address">${storeAddress}</div>` : ''}
-                        ${storePhone ? `<div class="company-contact">Telp: ${storePhone}</div>` : ''}
+                        ${storePhone ? `<div class="company-contact">Telp : ${storePhone}</div>` : ''}
                       </td>
                     </tr>
                   </table>
@@ -686,8 +686,9 @@ export default function SuppliersPage() {
           }
           * {
             box-sizing: border-box;
-            font-weight: 800 !important;
+            font-weight: 900 !important;
             color: #000000 !important;
+            font-family: Helvetica, Arial, sans-serif !important;
           }
           body {
             font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
