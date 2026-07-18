@@ -294,7 +294,7 @@ function TransactionReceiptDialog({
                   <table style="border-collapse: collapse; border: none; margin: 0; padding: 0;">
                     <tr>
                       <td style="vertical-align: middle; padding-right: 12px; border: none;">
-                        <img src="${import.meta.env.BASE_URL}CV.AULIA.png" alt="Logo" style="height: 40px; width: auto; display: block; position: relative; top: -3px;" onerror="this.style.display='none'" />
+                        <img src="${window.location.origin}${import.meta.env.BASE_URL}CV.AULIA.png" alt="Logo" style="height: 40px; width: auto; display: block; position: relative; top: -3px;" onerror="this.style.display='none'" />
                       </td>
                       <td style="vertical-align: middle; border: none; padding: 0; text-align: left;">
                         <div class="company-name">${storeName}</div>
@@ -430,7 +430,7 @@ function TransactionReceiptDialog({
                          return `
                             <tr>
                               <td style="color: #475569; font-weight: 500; text-align: left;">Diskon ${note ? `(${note})` : ''}</td>
-                              <td style="text-align: right; color: #ea580c; font-weight: 600;">-${formatRupiah(trx.discount)}</td>
+                              <td style="text-align: right; color: #ea580c; font-weight: 600;">${formatRupiah(trx.discount)}</td>
                             </tr>
                          `;
                       }
@@ -440,7 +440,7 @@ function TransactionReceiptDialog({
                         html += `
                           <tr>
                             <td style="color: #475569; font-weight: 500; text-align: left;">Diskon Global (${globalDiscountPercent}%)</td>
-                            <td style="text-align: right; color: #ea580c; font-weight: 600;">-${formatRupiah(globalDiscountAmount)}</td>
+                            <td style="text-align: right; color: #ea580c; font-weight: 600;">${formatRupiah(globalDiscountAmount)}</td>
                           </tr>
                         `;
                       }
@@ -448,7 +448,7 @@ function TransactionReceiptDialog({
                         html += `
                           <tr>
                             <td style="color: #475569; font-weight: 500; text-align: left;">Diskon Admin ${hasAdminPercent ? `(${adminDiscountPercent}%)` : ''}</td>
-                            <td style="text-align: right; color: #ea580c; font-weight: 600;">-${formatRupiah(manualDiscount)}</td>
+                            <td style="text-align: right; color: #ea580c; font-weight: 600;">${formatRupiah(manualDiscount)}</td>
                           </tr>
                         `;
                       }
