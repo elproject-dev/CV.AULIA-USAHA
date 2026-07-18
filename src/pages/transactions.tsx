@@ -429,8 +429,8 @@ function TransactionReceiptDialog({
                       if (!hasGlobalDiscount && !hasAdminNote) {
                          return `
                             <tr>
-                              <td style="color: #475569; font-weight: 500; text-align: left;">Diskon ${note ? `(${note})` : ''}</td>
-                              <td style="text-align: right; color: #ea580c; font-weight: 600;">${formatRupiah(trx.discount)}</td>
+                              <td style="color: #475569; font-weight: 500; text-align: left; font-size: 14.4px;">Diskon ${note ? `(${note})` : ''}</td>
+                              <td style="text-align: right; color: #ea580c; font-weight: 600; font-size: 14.4px;">${formatRupiah(trx.discount)}</td>
                             </tr>
                          `;
                       }
@@ -439,16 +439,16 @@ function TransactionReceiptDialog({
                       if (globalDiscountAmount > 0) {
                         html += `
                           <tr>
-                            <td style="color: #475569; font-weight: 500; text-align: left;">Diskon Global (${globalDiscountPercent}%)</td>
-                            <td style="text-align: right; color: #ea580c; font-weight: 600;">${formatRupiah(globalDiscountAmount)}</td>
+                            <td style="color: #475569; font-weight: 500; text-align: left; font-size: 14.4px;">Diskon Global (${globalDiscountPercent}%)</td>
+                            <td style="text-align: right; color: #ea580c; font-weight: 600; font-size: 14.4px;">${formatRupiah(globalDiscountAmount)}</td>
                           </tr>
                         `;
                       }
                       if (manualDiscount > 0) {
                         html += `
                           <tr>
-                            <td style="color: #475569; font-weight: 500; text-align: left;">Diskon Admin ${hasAdminPercent ? `(${adminDiscountPercent}%)` : ''}</td>
-                            <td style="text-align: right; color: #ea580c; font-weight: 600;">${formatRupiah(manualDiscount)}</td>
+                            <td style="color: #475569; font-weight: 500; text-align: left; font-size: 14.4px;">Diskon Admin ${hasAdminPercent ? `(${adminDiscountPercent}%)` : ''}</td>
+                            <td style="text-align: right; color: #ea580c; font-weight: 600; font-size: 14.4px;">${formatRupiah(manualDiscount)}</td>
                           </tr>
                         `;
                       }
