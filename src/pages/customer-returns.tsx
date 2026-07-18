@@ -281,12 +281,18 @@ export default function CustomerReturnsPage() {
                   <div style="color: #0f172a; display: inline-block; min-width: 130px; padding-top: 2px; font-family: monospace;">
                     ( _________________ )
                   </div>
+                  <div style="margin-top: 4px; font-family: monospace;">
+                    _________________
+                  </div>
                 </td>
                 <td style="width: 50%; text-align: center; font-size: 12px; color: #334155; vertical-align: top;">
                   <div>Hormat Kami,</div>
                   <div style="height: 32px;"></div>
                   <div style="color: #0f172a; display: inline-block; min-width: 130px; padding-top: 2px; font-family: monospace;">
                     ( _________________ )
+                  </div>
+                  <div style="margin-top: 4px; font-family: monospace;">
+                    _________________
                   </div>
                 </td>
               </tr>
@@ -317,10 +323,13 @@ export default function CustomerReturnsPage() {
         <style>
           @page {
             size: auto; /* Biarkan driver printer continuous yang menentukan ukuran */
-            margin: 0mm;
+            margin-top: 15mm;
+            margin-bottom: 5mm;
+            margin-left: 0mm;
+            margin-right: 0mm;
           }
           @media print {
-            body { margin: 0; padding: 5mm 8mm; }
+            body { margin: 0; padding: 10mm 8mm 5mm 8mm; }
             .no-print { display: none !important; }
             .invoice-copy { border: none !important; } /* Hilangkan border putus-putus luar */
           }

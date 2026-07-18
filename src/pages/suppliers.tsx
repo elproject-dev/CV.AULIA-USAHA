@@ -563,7 +563,7 @@ export default function SuppliersPage() {
                   <th style="width: 5%; text-align: center;">No</th>
                   <th style="width: 44%; text-align: left;">Nama Produk / Item</th>
                   <th style="width: 15%; text-align: center;">Qty</th>
-                  <th style="width: 15%; text-align: right;">Harga Satuan</th>
+                  <th style="width: 15%; text-align: right;">Harga</th>
                   <th style="width: 20%; text-align: right;">Subtotal</th>
                 </tr>
               </thead>
@@ -638,12 +638,18 @@ export default function SuppliersPage() {
                   <div style="color: #0f172a; display: inline-block; min-width: 130px; padding-top: 2px; font-family: monospace;">
                     ( _________________ )
                   </div>
+                  <div style="margin-top: 4px; font-family: monospace;">
+                    _________________
+                  </div>
                 </td>
                 <td style="width: 50%; text-align: center; font-size: 10px; color: #334155; vertical-align: top;">
                   <div>Hormat Kami,</div>
                   <div style="height: 32px;"></div>
                   <div style="color: #0f172a; display: inline-block; min-width: 130px; padding-top: 2px; font-family: monospace;">
                     ( _________________ )
+                  </div>
+                  <div style="margin-top: 4px; font-family: monospace;">
+                    _________________
                   </div>
                 </td>
               </tr>
@@ -667,11 +673,14 @@ export default function SuppliersPage() {
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
         <style>
           @page {
-            size: A4 portrait;
-            margin: 0mm;
+            size: auto;
+            margin-top: 15mm;
+            margin-bottom: 5mm;
+            margin-left: 0mm;
+            margin-right: 0mm;
           }
           @media print {
-            body { margin: 0; padding: 8mm 10mm; }
+            body { margin: 0; padding: 10mm 8mm 5mm 8mm; }
             .no-print { display: none !important; }
             .invoice-copy { border: 1px solid transparent !important; }
           }
@@ -792,6 +801,8 @@ export default function SuppliersPage() {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 8px;
+            border-left: 1.5px solid #0f172a;
+            border-right: 1.5px solid #0f172a;
           }
           .items-table th {
             background-color: #f8fafc;
@@ -802,16 +813,20 @@ export default function SuppliersPage() {
             letter-spacing: 0.05em;
             padding: 4px 6px;
             border-bottom: 1.5px solid #0f172a;
-            border-top: 1px solid #e2e8f0;
+            border-top: 1.5px solid #0f172a;
+            border-left: 1px solid #0f172a;
+            border-right: 1px solid #0f172a;
           }
           .items-table td {
             padding: 4px 6px;
             font-size: 10px;
             border-bottom: 1px dashed #e2e8f0;
+            border-left: 1px solid #0f172a;
+            border-right: 1px solid #0f172a;
             color: #0f172a;
           }
           .items-table tr:last-child td {
-            border-bottom: 1px solid #0f172a;
+            border-bottom: 1.5px solid #0f172a;
           }
           .items-table tr.empty-row td {
             height: 15px;

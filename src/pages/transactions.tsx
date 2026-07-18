@@ -193,6 +193,26 @@ function TransactionReceiptDialog({
     const storeAddress = displayedAddress || "";
     const storePhone = displayedPhone || "";
 
+    let globalDiscountPercent = 0;
+    let adminDiscountPercent = 0;
+    if (trx.discount > 0 && trx.subtotal > 0) {
+      const note = trx.discount_note || '';
+      const globalMatch = note.match(/Diskon Global (\d+(\.\d+)?)%/);
+      if (globalMatch) {
+        globalDiscountPercent = parseFloat(globalMatch[1]);
+      } else if (!note.includes('Diskon Admin') || note.includes('Diskon Global')) {
+        globalDiscountPercent = Math.round((trx.discount / trx.subtotal) * 100);
+      }
+      
+      const adminMatch = note.match(/Diskon Admin (\d+(\.\d+)?)%/);
+      if (adminMatch) {
+        adminDiscountPercent = parseFloat(adminMatch[1]);
+      } else if (note.includes('Diskon Admin')) {
+        const totalPercent = Math.round((trx.discount / trx.subtotal) * 100);
+        adminDiscountPercent = totalPercent - globalDiscountPercent > 0 ? totalPercent - globalDiscountPercent : totalPercent;
+      }
+    }
+
     let itemsHtml = trx.transaction_items?.map((item: any, index: number) => {
       const productName = item.product_name || 'Unknown';
       const qty = item.unit_qty !== undefined && item.unit_qty !== null ? item.unit_qty : (item.quantity || 0);
@@ -214,23 +234,32 @@ function TransactionReceiptDialog({
       }
 
       const displayPrice = qty > 0 ? (subtotal / qty) : 0;
+      
+      const finalDisc1 = discountPercent > 0 ? discountPercent : globalDiscountPercent;
+      const displayDisc1 = finalDisc1 > 0 ? finalDisc1 + '%' : '-';
+      
+      const displayDisc2 = adminDiscountPercent > 0 ? adminDiscountPercent + '%' : '-';
 
       return `
         <tr>
-          <td style="text-align: center; color: #64748b;">${index + 1}</td>
           <td style="font-weight: 600; color: #0f172a;">${productName}</td>
-          <td style="text-align: center; font-weight: 600; color: #0f172a;">${qty} ${unit}</td>
+          <td style="text-align: center; font-weight: 600; color: #0f172a;">${qty}</td>
+          <td style="text-align: center; font-weight: 600; color: #0f172a;">${unit}</td>
           <td style="text-align: right; color: #475569;">${formatRupiah(displayPrice)}</td>
+          <td style="text-align: center; color: #475569;">${displayDisc1}</td>
+          <td style="text-align: center; color: #475569;">${displayDisc2}</td>
           <td style="text-align: right; font-weight: 700; color: #0f172a;">${formatRupiah(subtotal)}</td>
         </tr>`;
     }).join('') || '';
 
     const itemsCount = trx.transaction_items?.length || 0;
-    if (itemsCount < 8) {
-      for (let i = itemsCount; i < 8; i++) {
+    if (itemsCount < 10) {
+      for (let i = itemsCount; i < 10; i++) {
         itemsHtml += `
           <tr class="empty-row">
-            <td style="text-align: center; color: #cbd5e1;">${i + 1}</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
             <td>&nbsp;</td>
             <td>&nbsp;</td>
             <td>&nbsp;</td>
@@ -337,11 +366,13 @@ function TransactionReceiptDialog({
             <table class="items-table">
               <thead>
                 <tr>
-                  <th style="width: 5%; text-align: center;">No</th>
-                  <th style="width: 45%; text-align: left;">Nama Produk</th>
-                  <th style="width: 10%; text-align: center;">Qty</th>
-                  <th style="width: 20%; text-align: right;">Harga Satuan</th>
-                  <th style="width: 20%; text-align: right;">Subtotal</th>
+                  <th style="width: 39%; text-align: left;">Nama Produk</th>
+                  <th style="width: 7%; text-align: center;">Qty</th>
+                  <th style="width: 8%; text-align: center;">Satuan</th>
+                  <th style="width: 15%; text-align: right;">Harga</th>
+                  <th style="width: 8%; text-align: center;">Disc 1</th>
+                  <th style="width: 8%; text-align: center;">Disc 2</th>
+                  <th style="width: 15%; text-align: right;">Subtotal</th>
                 </tr>
               </thead>
               <tbody>
@@ -365,13 +396,66 @@ function TransactionReceiptDialog({
                       <td style="color: #475569; font-weight: 500; text-align: left;">Pajak</td>
                       <td style="text-align: right; color: #0f172a; font-weight: 600;">${formatRupiah(trx.tax)}</td>
                     </tr>` : ''}
-                    ${trx.discount > 0 ? `
-                      <tr>
-                        <td style="color: #475569; font-weight: 500; text-align: left;">Diskon</td>
-                        <td style="text-align: right; color: #ea580c; font-weight: 600;">-${formatRupiah(trx.discount)}</td>
-                      </tr>` : ''}
+                    ${(() => {
+                      if (!trx.discount || trx.discount <= 0) return '';
+                      
+                      let globalDiscountAmount = 0;
+                      let globalDiscountPercent = 0;
+                      let adminDiscountPercent = 0;
+                      let hasGlobalDiscount = false;
+                      let hasAdminPercent = false;
+                      let hasAdminNote = false;
+                      
+                      const note = trx.discount_note || '';
+                      
+                      const globalMatch = note.match(/Diskon Global (\d+(\.\d+)?)%/);
+                      if (globalMatch) {
+                        globalDiscountPercent = parseFloat(globalMatch[1]);
+                        globalDiscountAmount = Math.floor((trx.subtotal || 0) * (globalDiscountPercent / 100));
+                        hasGlobalDiscount = true;
+                      }
+                      
+                      const adminMatch = note.match(/Diskon Admin (\d+(\.\d+)?)%/);
+                      if (adminMatch) {
+                        adminDiscountPercent = parseFloat(adminMatch[1]);
+                        hasAdminPercent = true;
+                        hasAdminNote = true;
+                      } else if (note.includes('Diskon Admin')) {
+                        hasAdminNote = true;
+                      }
+                      
+                      const manualDiscount = hasGlobalDiscount ? (trx.discount - globalDiscountAmount) : trx.discount;
+                      
+                      if (!hasGlobalDiscount && !hasAdminNote) {
+                         return `
+                            <tr>
+                              <td style="color: #475569; font-weight: 500; text-align: left;">Diskon ${note ? `(${note})` : ''}</td>
+                              <td style="text-align: right; color: #ea580c; font-weight: 600;">-${formatRupiah(trx.discount)}</td>
+                            </tr>
+                         `;
+                      }
+                      
+                      let html = '';
+                      if (globalDiscountAmount > 0) {
+                        html += `
+                          <tr>
+                            <td style="color: #475569; font-weight: 500; text-align: left;">Diskon Global (${globalDiscountPercent}%)</td>
+                            <td style="text-align: right; color: #ea580c; font-weight: 600;">-${formatRupiah(globalDiscountAmount)}</td>
+                          </tr>
+                        `;
+                      }
+                      if (manualDiscount > 0) {
+                        html += `
+                          <tr>
+                            <td style="color: #475569; font-weight: 500; text-align: left;">Diskon Admin ${hasAdminPercent ? `(${adminDiscountPercent}%)` : ''}</td>
+                            <td style="text-align: right; color: #ea580c; font-weight: 600;">-${formatRupiah(manualDiscount)}</td>
+                          </tr>
+                        `;
+                      }
+                      return html;
+                    })()}
                     <tr>
-                      <td style="color: #0f172a; font-weight: 800; border-top: 1.5px solid #0f172a; padding-top: 4px; text-align: left; font-size: 15.6px;">TOTAL</td>
+                      <td style="color: #0f172a; font-weight: 800; border-top: 1.5px solid #0f172a; padding-top: 4px; text-align: left; font-size: 15.6px;">GRAND TOTAL</td>
                       <td style="text-align: right; color: #0f172a; font-weight: 800; border-top: 1.5px solid #0f172a; padding-top: 4px; font-size: 15.6px;">
                         ${formatRupiah((trx.subtotal || 0) + (trx.tax || 0) - (trx.discount || 0))}
                       </td>
@@ -405,12 +489,18 @@ function TransactionReceiptDialog({
                   <div style="color: #0f172a; display: inline-block; min-width: 130px; padding-top: 2px; font-family: monospace;">
                     ( _________________ )
                   </div>
+                  <div style="margin-top: 4px; font-family: monospace;">
+                    _________________
+                  </div>
                 </td>
                 <td style="width: 50%; text-align: center; font-size: 12px; color: #334155; vertical-align: top;">
                   <div>Hormat Kami,</div>
                   <div style="height: 32px;"></div>
                   <div style="color: #0f172a; display: inline-block; min-width: 130px; padding-top: 2px; font-family: monospace;">
                     ( _________________ )
+                  </div>
+                  <div style="margin-top: 4px; font-family: monospace;">
+                    _________________
                   </div>
                 </td>
               </tr>
@@ -441,10 +531,13 @@ function TransactionReceiptDialog({
         <style>
           @page {
             size: auto; /* Biarkan driver printer continuous yang menentukan ukuran */
-            margin: 0mm;
+            margin-top: 15mm;
+            margin-bottom: 5mm;
+            margin-left: 0mm;
+            margin-right: 0mm;
           }
           @media print {
-            body { margin: 0; padding: 5mm 8mm; }
+            body { margin: 0; padding: 10mm 8mm 5mm 8mm; }
             .no-print { display: none !important; }
             .invoice-copy { border: none !important; } /* Hilangkan border putus-putus luar */
           }
@@ -574,28 +667,34 @@ function TransactionReceiptDialog({
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 8px;
+            border-left: 1.5px solid #000000;
+            border-right: 1.5px solid #000000;
           }
           .items-table th {
             color: #000000 !important;
             font-size: 12px;
             font-weight: bold;
             text-transform: uppercase;
-            padding: 4px 6px;
+            padding: 2px 4px;
             border-bottom: 1.5px solid #000000;
             border-top: 1.5px solid #000000;
+            border-left: 1px solid #000000;
+            border-right: 1px solid #000000;
           }
           .items-table td {
-            padding: 4px 6px;
+            padding: 1px 4px;
             font-size: 13.2px;
             border-bottom: none;
+            border-left: 1px solid #000000;
+            border-right: 1px solid #000000;
             color: #000000 !important;
           }
           .items-table tr:last-child td {
             border-bottom: 1.5px solid #000000;
           }
           .items-table tr.empty-row td {
-            height: 15px;
-            padding: 2px 6px;
+            height: 14px;
+            padding: 1px 4px;
           }
 
           .text-center {
@@ -825,12 +924,60 @@ function TransactionReceiptDialog({
                     <span>{formatRupiah(trx.tax)}</span>
                   </div>
                 ) : null}
-                {trx.discount && trx.discount > 0 ? (
-                  <div className="flex justify-between text-destructive">
-                    <span>Diskon {trx.discount_note ? `(${trx.discount_note})` : ''}</span>
-                    <span>-{formatRupiah(trx.discount)}</span>
-                  </div>
-                ) : null}
+                {trx.discount && trx.discount > 0 ? (() => {
+                  let globalDiscountAmount = 0;
+                  let globalDiscountPercent = 0;
+                  let adminDiscountPercent = 0;
+                  let hasGlobalDiscount = false;
+                  let hasAdminPercent = false;
+                  let hasAdminNote = false;
+                  
+                  const note = trx.discount_note || '';
+                  
+                  const globalMatch = note.match(/Diskon Global (\d+(\.\d+)?)%/i);
+                  if (globalMatch) {
+                    globalDiscountPercent = parseFloat(globalMatch[1]);
+                    globalDiscountAmount = Math.floor((trx.subtotal || 0) * (globalDiscountPercent / 100));
+                    hasGlobalDiscount = true;
+                  }
+                  
+                  const adminMatch = note.match(/Diskon Admin (\d+(\.\d+)?)%/i);
+                  if (adminMatch) {
+                    adminDiscountPercent = parseFloat(adminMatch[1]);
+                    hasAdminPercent = true;
+                    hasAdminNote = true;
+                  } else if (note.toLowerCase().includes('diskon admin')) {
+                    hasAdminNote = true;
+                  }
+                  
+                  const manualDiscount = hasGlobalDiscount ? (trx.discount - globalDiscountAmount) : trx.discount;
+                  
+                  if (!hasGlobalDiscount && !hasAdminNote) {
+                     return (
+                        <div className="flex justify-between text-destructive">
+                          <span>Diskon {note ? `(${note})` : ''}</span>
+                          <span>-{formatRupiah(trx.discount)}</span>
+                        </div>
+                     );
+                  }
+                  
+                  return (
+                    <>
+                      {globalDiscountAmount > 0 && (
+                        <div className="flex justify-between text-emerald-600 dark:text-emerald-500">
+                          <span>Diskon Global ({globalDiscountPercent}%)</span>
+                          <span>-{formatRupiah(globalDiscountAmount)}</span>
+                        </div>
+                      )}
+                      {manualDiscount > 0 && (
+                        <div className="flex justify-between text-emerald-600 dark:text-emerald-500">
+                          <span>Diskon Admin {hasAdminPercent ? `(${adminDiscountPercent}%)` : ''}</span>
+                          <span>-{formatRupiah(manualDiscount)}</span>
+                        </div>
+                      )}
+                    </>
+                  );
+                })() : null}
 
                 <div className="flex justify-between font-bold text-sm sm:text-lg pt-3 sm:pt-4">
                   <span className="text-slate-900">GRAND TOTAL</span>

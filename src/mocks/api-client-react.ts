@@ -288,6 +288,191 @@ export const useGetDashboardStats = (params?: any) => {
   return { data, isLoading, error };
 };
 
+export const useGetDashboardMargin = (params?: any) => {
+  const [data, setData] = useState<any>({ todayMargin: 0, yesterdayMargin: 0, margin: 0, changePercent: 0, changeText: 'Tidak berubah', isPositive: true, hasHpp: false });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<any>(null);
+
+  const fetchMargin = async () => {
+    setIsLoading(true);
+    try {
+      const { data: products } = await applyTenantFilterForTable(supabase.from('products').select('id, hpp'), 'products');
+      const hppMap = new Map((products || []).map((p: any) => [p.id, Number(p.hpp)]));
+      
+      if (hppMap.size === 0) {
+         setData({ todayMargin: 0, yesterdayMargin: 0, margin: 0, changePercent: 0, changeText: 'Tidak berubah', isPositive: true, hasHpp: false });
+         setIsLoading(false);
+         return;
+      }
+
+      const now = new Date();
+      const isCustomDate = !!params?.startDate || !!params?.endDate;
+      
+      let startOfRange = new Date();
+      startOfRange.setHours(0,0,0,0);
+      let endOfRange = new Date();
+      endOfRange.setHours(23,59,59,999);
+      
+      let startOfYesterday = new Date(now);
+      startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+      startOfYesterday.setHours(0,0,0,0);
+      let endOfYesterday = new Date(now);
+      endOfYesterday.setDate(endOfYesterday.getDate() - 1);
+      endOfYesterday.setHours(23,59,59,999);
+
+      if (isCustomDate) {
+        startOfRange = params?.startDate ? new Date(params.startDate + 'T00:00:00') : new Date(params.endDate + 'T00:00:00');
+        endOfRange = params?.endDate ? new Date(params.endDate + 'T00:00:00') : new Date(params.startDate + 'T00:00:00');
+        startOfRange.setHours(0, 0, 0, 0);
+        endOfRange.setHours(23, 59, 59, 999);
+      }
+
+      const fetchStartIso = isCustomDate ? startOfRange.toISOString() : startOfYesterday.toISOString();
+      const fetchEndIso = endOfRange.toISOString();
+
+      let trxQuery = applyTenantFilter(
+        supabase
+          .from('transactions')
+          .select('id, subtotal, discount, amount_paid, remaining_balance, created_at, cashier_name, outlet_id, transaction_items(product_id, quantity, subtotal)')
+          .eq('status', 'completed')
+          .gte('created_at', fetchStartIso)
+          .lte('created_at', fetchEndIso)
+      );
+
+      if (params?.cashierFilter && params.cashierFilter !== 'all') {
+        trxQuery = trxQuery.ilike('cashier_name', params.cashierFilter);
+      }
+      if (params?.outletFilter && params.outletFilter !== 'all') {
+        trxQuery = trxQuery.eq('outlet_id', parseInt(params.outletFilter));
+      }
+
+      const { data: transactions, error: trxError } = await trxQuery;
+      if (trxError) throw trxError;
+
+      let returnsQuery = applyTenantFilter(
+        supabase
+          .from('customer_returns')
+          .select('id, return_date, return_items(product_id, quantity, refund_amount, subtotal)')
+          .eq('status', 'completed')
+          .gte('return_date', fetchStartIso)
+          .lte('return_date', fetchEndIso)
+      );
+      const { data: returnsData } = await returnsQuery;
+
+      let totalMargin = 0;
+      let todayMargin = 0;
+      let yesterdayMargin = 0;
+      let hasData = false;
+
+      const getReturnMarginForDate = (dateStart: Date, dateEnd: Date) => {
+         let rMargin = 0;
+         (returnsData || []).forEach((ret: any) => {
+            const rDate = new Date(ret.return_date);
+            if (rDate >= dateStart && rDate <= dateEnd) {
+               (ret.return_items || []).forEach((rItem: any) => {
+                  const hpp = hppMap.get(rItem.product_id);
+                  if (hpp) {
+                     const returnedCost = Number(rItem.quantity) * (hpp as number);
+                     const returnedRevenue = Number(rItem.subtotal) || Number(rItem.refund_amount) || 0;
+                     rMargin += (returnedRevenue - returnedCost);
+                  }
+               });
+            }
+         });
+         return rMargin;
+      };
+
+      (transactions || []).forEach((trx: any) => {
+        const trxDate = new Date(trx.created_at);
+        const isToday = trxDate >= startOfRange && trxDate <= endOfRange;
+        const isYesterday = !isCustomDate && (trxDate >= startOfYesterday && trxDate <= endOfYesterday);
+
+        if (!isToday && !isYesterday) return;
+
+        let trxGrossMargin = 0;
+        let trxNetTotal = Number(trx.subtotal) || 0;
+
+        (trx.transaction_items || []).forEach((item: any) => {
+          const hpp = hppMap.get(item.product_id);
+          if (!hpp) return;
+          const cogs = Number(item.quantity) * (hpp as number);
+          const revenue = Number(item.subtotal) || 0;
+          trxGrossMargin += (revenue - cogs);
+          hasData = true;
+        });
+
+        // Parse discount specifically for margin (deduct both global and admin if available, or just fallback to trx.discount)
+        const trxDiscount = Number(trx.discount) || 0;
+        trxGrossMargin -= trxDiscount;
+
+        const trxRemaining = Math.max(0, Number(trx.remaining_balance) || 0);
+        const trxKasMasuk = Math.max(0, trxNetTotal - trxRemaining);
+        const paymentRatio = trxNetTotal > 0 ? trxKasMasuk / trxNetTotal : 0;
+        const cashBasisMargin = trxGrossMargin * paymentRatio;
+
+        if (isCustomDate) {
+           if (isToday) totalMargin += cashBasisMargin;
+        } else {
+           if (isToday) todayMargin += cashBasisMargin;
+           if (isYesterday) yesterdayMargin += cashBasisMargin;
+        }
+      });
+      
+      if (isCustomDate) {
+         totalMargin -= getReturnMarginForDate(startOfRange, endOfRange);
+      } else {
+         todayMargin -= getReturnMarginForDate(startOfRange, endOfRange);
+         yesterdayMargin -= getReturnMarginForDate(startOfYesterday, endOfYesterday);
+         totalMargin = todayMargin;
+      }
+
+      const change = yesterdayMargin > 0 ? Math.round(((todayMargin - yesterdayMargin) / yesterdayMargin) * 100) : 0;
+      const changeText = change > 0 ? `+${change}% dari kemarin` : change < 0 ? `${change}% dari kemarin` : 'Tidak berubah';
+
+      setData({
+        margin: totalMargin,
+        todayMargin,
+        yesterdayMargin,
+        changePercent: change,
+        changeText,
+        isPositive: change >= 0,
+        hasHpp: hasData
+      });
+    } catch (err) {
+      setError(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMargin();
+    
+    const channel1 = supabase
+      .channel('dashboard_margin_transactions')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => fetchMargin())
+      .subscribe();
+
+    const channel2 = supabase
+      .channel('dashboard_margin_returns')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_returns' }, () => fetchMargin())
+      .subscribe();
+
+    const channel3 = supabase
+      .channel('dashboard_margin_payments')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transaction_payments' }, () => fetchMargin())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel1);
+      supabase.removeChannel(channel2);
+      supabase.removeChannel(channel3);
+    };
+  }, [params?.cashierFilter, params?.outletFilter, params?.startDate, params?.endDate]);
+
+  return { data, isLoading, error };
+};
+
 export const useGetTopProducts = (params?: any) => {
   const [data, setData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -2101,6 +2286,7 @@ export const useCreateTransaction = () => {
           subtotal: params.data.subtotal,
           tax: params.data.tax,
           discount: params.data.discount || 0,
+          discount_note: params.data.discountNote || null,
           amount_paid: params.data.amountPaid,
           change: params.data.change || 0,
           status: params.data.status || 'completed',
@@ -2250,6 +2436,7 @@ export const useUpdateTransaction = () => {
           subtotal: params.data.subtotal,
           tax: params.data.tax,
           discount: params.data.discount || 0,
+          discount_note: params.data.discountNote || null,
           amount_paid: params.data.amountPaid,
           change: params.data.change || 0,
           status: params.data.status || 'completed',

@@ -241,7 +241,7 @@ export default function ReceivablesPage() {
                   <th style="width: 5%; text-align: center;">No</th>
                   <th style="width: 44%; text-align: left;">Nama Produk</th>
                   <th style="width: 15%; text-align: center;">Qty</th>
-                  <th style="width: 15%; text-align: right;">Harga Satuan</th>
+                  <th style="width: 15%; text-align: right;">Harga</th>
                   <th style="width: 20%; text-align: right;">Subtotal</th>
                 </tr>
               </thead>
@@ -293,12 +293,18 @@ export default function ReceivablesPage() {
                   <div style="color: #0f172a; display: inline-block; min-width: 130px; padding-top: 2px; font-family: monospace;">
                     ( _________________ )
                   </div>
+                  <div style="margin-top: 4px; font-family: monospace;">
+                    _________________
+                  </div>
                 </td>
                 <td style="width: 50%; text-align: center; font-size: 14.4px; color: #334155; vertical-align: top;">
                   <div>Hormat Kami,</div>
                   <div style="height: 32px;"></div>
                   <div style="color: #0f172a; display: inline-block; min-width: 130px; padding-top: 2px; font-family: monospace;">
                     ( _________________ )
+                  </div>
+                  <div style="margin-top: 4px; font-family: monospace;">
+                    _________________
                   </div>
                 </td>
               </tr>
@@ -332,10 +338,13 @@ export default function ReceivablesPage() {
         <style>
           @page {
             size: auto; /* Biarkan driver printer continuous yang menentukan ukuran */
-            margin: 0mm;
+            margin-top: 15mm;
+            margin-bottom: 5mm;
+            margin-left: 0mm;
+            margin-right: 0mm;
           }
           @media print {
-            body { margin: 0; padding: 5mm 8mm; }
+            body { margin: 0; padding: 10mm 8mm 5mm 8mm; }
             .no-print { display: none !important; }
             .invoice-copy { border: none !important; } /* Hilangkan border putus-putus luar */
           }
@@ -409,6 +418,8 @@ export default function ReceivablesPage() {
             width: 100%;
             border-collapse: collapse;
             margin: 4px 0;
+            border-left: 1.5px solid #000000;
+            border-right: 1.5px solid #000000;
           }
           .items-table th {
             color: #000000 !important;
@@ -418,12 +429,16 @@ export default function ReceivablesPage() {
             padding: 4px 6px;
             border-bottom: 1.5px solid #000000;
             border-top: 1.5px solid #000000;
+            border-left: 1px solid #000000;
+            border-right: 1px solid #000000;
           }
           .items-table td {
             padding: 4px 6px;
             border-bottom: none;
             font-size: 12.96px;
             vertical-align: middle;
+            border-left: 1px solid #000000;
+            border-right: 1px solid #000000;
             color: #000000 !important;
           }
           .items-table tr:last-child td {

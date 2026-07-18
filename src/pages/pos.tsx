@@ -141,7 +141,7 @@ export default function POSPage() {
   const [isCustomDiscountNote, setIsCustomDiscountNote] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [discountPercentStr, setDiscountPercentStr] = useState<string>("");
-  const [discountType, setDiscountType] = useState<"nominal" | "percent">("nominal");
+  const [discountType, setDiscountType] = useState<"nominal" | "percent">("percent");
   const enableDiscount = isAdmin && isEditMode;
   const defaultDiscountPrice = "0";
   const enablePPN = false;
@@ -200,7 +200,7 @@ export default function POSPage() {
         const note = editTransactionData.discount_note || "";
 
         // Default to 0 / empty for admin discounts as requested
-        setDiscountType('nominal');
+        setDiscountType('percent');
         setDiscountPercentStr("");
         setDiscountDisplay("");
         setDiscountStr("");
@@ -217,7 +217,7 @@ export default function POSPage() {
            setDiscountNote("");
         }
       } else {
-        setDiscountType('nominal');
+        setDiscountType('percent');
         setDiscountDisplay("");
         setDiscountStr("");
         setDiscountPercentStr("");
@@ -1554,57 +1554,28 @@ export default function POSPage() {
                 <div className="flex flex-col gap-2">
                   <div className="flex justify-between items-center">
                     <label className="text-xs font-normal text-slate-500 dark:text-slate-400 uppercase tracking-wider">Diskon Admin</label>
-                    <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-md">
-                      <button
-                        onClick={() => setDiscountType("nominal")}
-                        className={`px-3 py-1 text-xs font-medium rounded ${discountType === "nominal" ? "bg-white dark:bg-slate-700 shadow-sm text-primary" : "text-slate-500 hover:text-slate-700"}`}
-                      >
-                        Rp
-                      </button>
-                      <button
-                        onClick={() => setDiscountType("percent")}
-                        className={`px-3 py-1 text-xs font-medium rounded ${discountType === "percent" ? "bg-white dark:bg-slate-700 shadow-sm text-primary" : "text-slate-500 hover:text-slate-700"}`}
-                      >
-                        %
-                      </button>
-                    </div>
                   </div>
 
-                  {discountType === "nominal" ? (
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 font-medium text-sm">Rp</span>
-                      <Input
-                        value={discountDisplay}
-                        onChange={(e) => {
-                          const val = formatNumberWithDots(e.target.value);
-                          setDiscountDisplay(val);
-                          setDiscountStr(val);
-                        }}
-                        placeholder="0"
-                        className="pl-9 h-10 lg:h-9"
-                      />
-                    </div>
-                  ) : (
-                    <div className="relative">
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={discountPercentStr}
-                        onChange={(e) => setDiscountPercentStr(e.target.value)}
-                        placeholder="0"
-                        className="pr-8 h-10 lg:h-9"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 font-medium text-sm">%</span>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={discountPercentStr}
+                      onChange={(e) => setDiscountPercentStr(e.target.value)}
+                      placeholder="0"
+                      className="pr-8 h-10 lg:h-9"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 font-medium text-sm">%</span>
+                  </div>
+
+                  {manualDiscount > 0 && (
+                    <div className="mt-1">
+                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-none px-2 py-1 w-full justify-center text-sm font-medium">
+                        Potongan: - {formatRupiah(manualDiscount)}
+                      </Badge>
                     </div>
                   )}
-
-                  <Input
-                    value={discountNote}
-                    onChange={(e) => setDiscountNote(e.target.value)}
-                    placeholder="Keterangan diskon (opsional)"
-                    className="h-10 lg:h-9 mt-1"
-                  />
                 </div>
               </div>
             )}

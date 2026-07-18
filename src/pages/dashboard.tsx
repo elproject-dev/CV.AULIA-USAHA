@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
-import { useGetDashboardStats, useGetTopProducts, useGetRecentTransactions, useGetRevenueChart, useHealthCheck, useListTransactions, useGetCashierNames, useListOutlets, useListStaff, useAdvancedAnalytics, useListProducts, useListReturns } from "@workspace/api-client-react";
+import { useGetDashboardStats, useGetDashboardMargin, useGetTopProducts, useGetRecentTransactions, useGetRevenueChart, useHealthCheck, useListTransactions, useGetCashierNames, useListOutlets, useListStaff, useAdvancedAnalytics, useListProducts, useListReturns } from "@workspace/api-client-react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { ProfileDialog } from "@/components/layout/ProfileDialog";
 import { getProductImageUrl } from "@/lib/supabase-storage";
@@ -194,7 +194,10 @@ export default function DashboardPage() {
   // Load returns data (admin only)
   const { data: allReturns, isLoading: isLoadingReturns } = useListReturns();
 
-  const isLoadingMargin = isLoadingTransactions || isLoadingProducts || (isAdminSuper ? isLoadingReturns : false);
+  // Get real-time margin data
+  const { data: dashboardMargin, isLoading: isLoadingMarginData } = useGetDashboardMargin(isAdminSuper ? filterParams : undefined);
+  const isLoadingMargin = isLoadingMarginData;
+
   const { data: topProducts } = useGetTopProducts(filterParams);
   const { data: recentTransactions } = useGetRecentTransactions(filterParams);
   const { data: revenueChart } = useGetRevenueChart(filterParams);
@@ -332,216 +335,8 @@ export default function DashboardPage() {
   const transactionsToday = useCountUp(stats?.transactionsToday || 0, { duration: 1000 });
   const totalCustomers = useCountUp(stats?.totalCustomers || 0, { duration: 1400 });
   const revenueMonth = useCountUp(stats?.totalRevenueMonth || 0, { duration: 1600 });
-
-
-
-  // Calculate total margin from transactions (admin only)
-  const totalMarginData = useMemo(() => {
-    if (!isAdminSuper || !allTransactions || !allProducts) return { margin: 0, hasHpp: false };
-
-    // Build product HPP map
-    const hppMap = new Map<number, number>();
-    (allProducts as any[]).forEach((p: any) => {
-      if (p.hpp > 0) hppMap.set(p.id, Number(p.hpp));
-    });
-
-    if (hppMap.size === 0) return { margin: 0, hasHpp: false };
-
-    // Default to today if no date range is selected
-    const start = startDate ? new Date(startDate) : new Date();
-    start.setHours(0, 0, 0, 0);
-
-    const end = endDate ? new Date(endDate) : new Date();
-    end.setHours(23, 59, 59, 999);
-
-    let totalMargin = 0;
-    let hasData = false;
-
-    (allTransactions as any[]).forEach((trx: any) => {
-      // Apply date & outlet filters
-      if (outletFilter !== "all" && trx.outlet_id !== parseInt(outletFilter)) return;
-      
-      const trxDate = new Date(trx.created_at);
-      if (trxDate < start || trxDate > end) return;
-
-      const items = trx.transaction_items || [];
-      let trxGrossMargin = 0;
-      let trxNetTotal = Number(trx.subtotal) || 0;
-
-      items.forEach((item: any) => {
-        const productId = item.product_id;
-        const hpp = hppMap.get(productId);
-        if (!hpp) return;
-        const cogs = Number(item.quantity) * hpp;
-        const revenue = Number(item.subtotal) || 0;
-        trxGrossMargin += (revenue - cogs);
-        hasData = true;
-      });
-
-      const trxDiscount = Number(trx.discount) || 0;
-      trxGrossMargin -= trxDiscount;
-
-      // Process returns for this transaction
-      let trxReturnMargin = 0;
-      let trxReturnAmount = 0;
-      
-      if (allReturns) {
-        const trxReturns = (allReturns as any[]).filter(r => r.transaction_id === trx.id && r.status === 'completed');
-        trxReturns.forEach(ret => {
-          trxReturnAmount += Number(ret.total_refund) || 0;
-          
-          const retItems = ret.sales_return_items || [];
-          retItems.forEach((rItem: any) => {
-            const hpp = hppMap.get(rItem.product_id);
-            if (!hpp) return;
-
-            const uoms = rItem.products?.product_uoms || [];
-            const uom = uoms.find((u: any) => u.unit_name === rItem.unit_name);
-            const convFactor = uom ? uom.conversion_factor : 1;
-            const pcsQty = (Number(rItem.quantity) || 0) * convFactor;
-
-            const returnedCost = pcsQty * hpp;
-            const returnedRevenue = Number(rItem.subtotal) || Number(rItem.refund_amount) || 0;
-            trxReturnMargin += (returnedRevenue - returnedCost);
-          });
-        });
-      }
-
-      const trxNetMargin = trxGrossMargin - trxReturnMargin;
-      const finalTrxNetTotal = Math.max(0, trxNetTotal - trxReturnAmount);
-      
-      const trxRemaining = Math.max(0, Number(trx.remaining_balance ?? trx.remainingBalance) || 0);
-      const trxKasMasuk = Math.max(0, finalTrxNetTotal - trxRemaining);
-      const paymentRatio = finalTrxNetTotal > 0 ? trxKasMasuk / finalTrxNetTotal : 0;
-
-      const cashBasisMargin = trxNetMargin * paymentRatio;
-      
-      totalMargin += cashBasisMargin;
-    });
-
-    return { margin: totalMargin, hasHpp: hasData };
-  }, [isAdminSuper, allTransactions, allReturns, allProducts, outletFilter, startDate, endDate]);
-
-  const totalMarginCountUp = useCountUp(totalMarginData.margin, { duration: 1400 });
-
-  // Calculate margin comparisons (admin only)
-  const marginComparisonData = useMemo(() => {
-    if (!isAdminSuper || !allTransactions || !allProducts) {
-      return { todayMargin: 0, yesterdayMargin: 0, changePercent: 0, changeText: 'Tidak berubah', isPositive: true };
-    }
-
-    // Build product HPP map
-    const hppMap = new Map<number, number>();
-    (allProducts as any[]).forEach((p: any) => {
-      if (p.hpp > 0) hppMap.set(p.id, Number(p.hpp));
-    });
-
-    if (hppMap.size === 0) {
-      return { todayMargin: 0, yesterdayMargin: 0, changePercent: 0, changeText: 'Tidak berubah', isPositive: true };
-    }
-
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
-
-    const yesterdayStart = new Date();
-    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-    yesterdayStart.setHours(0, 0, 0, 0);
-    const yesterdayEnd = new Date();
-    yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
-    yesterdayEnd.setHours(23, 59, 59, 999);
-
-    let todayMargin = 0;
-    let yesterdayMargin = 0;
-
-    const trxMap = new Map<number, any>();
-
-    (allTransactions as any[]).forEach((trx: any) => {
-      // Apply outlet filter
-      if (outletFilter !== "all" && trx.outlet_id !== parseInt(outletFilter)) return;
-      
-      const trxDate = new Date(trx.created_at);
-      const isToday = trxDate >= todayStart && trxDate <= todayEnd;
-      const isYesterday = trxDate >= yesterdayStart && trxDate <= yesterdayEnd;
-
-      if (!isToday && !isYesterday) return;
-
-      trxMap.set(trx.id, trx);
-
-      const items = trx.transaction_items || [];
-      items.forEach((item: any) => {
-        const productId = item.product_id;
-        const hpp = hppMap.get(productId);
-        if (!hpp) return;
-        const cogs = Number(item.quantity) * hpp;
-        const revenue = Number(item.subtotal) || 0;
-        const marginVal = revenue - cogs;
-
-        if (isToday) {
-          todayMargin += marginVal;
-        } else if (isYesterday) {
-          yesterdayMargin += marginVal;
-        }
-      });
-      
-      const trxDiscount = Number(trx.discount) || 0;
-      if (isToday) {
-        todayMargin -= trxDiscount;
-      } else if (isYesterday) {
-        yesterdayMargin -= trxDiscount;
-      }
-    });
-
-    // Subtract completed returns
-    if (allReturns) {
-      (allReturns as any[]).forEach((ret: any) => {
-        if (ret.status !== 'completed') return;
-
-        const retDate = new Date(ret.created_at);
-        const isToday = retDate >= todayStart && retDate <= todayEnd;
-        const isYesterday = retDate >= yesterdayStart && retDate <= yesterdayEnd;
-
-        if (!isToday && !isYesterday) return;
-
-        const originalTrx = trxMap.get(ret.transaction_id);
-        if (!originalTrx) return;
-
-        const items = ret.sales_return_items || [];
-        items.forEach((item: any) => {
-          const productId = item.product_id;
-          const hpp = hppMap.get(productId);
-          if (!hpp) return;
-
-          const uoms = item.products?.product_uoms || [];
-          const uom = uoms.find((u: any) => u.unit_name === item.unit_name);
-          const convFactor = uom ? uom.conversion_factor : 1;
-          const pcsQty = (Number(item.quantity) || 0) * convFactor;
-
-          const returnedCost = pcsQty * hpp;
-          const returnedRevenue = Number(item.subtotal) || 0;
-          const returnedMargin = returnedRevenue - returnedCost;
-
-          if (isToday) {
-            todayMargin -= returnedMargin;
-          } else if (isYesterday) {
-            yesterdayMargin -= returnedMargin;
-          }
-        });
-      });
-    }
-
-    const change = yesterdayMargin > 0 ? Math.round(((todayMargin - yesterdayMargin) / yesterdayMargin) * 100) : 0;
-    const changeText = change > 0 ? `+${change}% dari kemarin` : change < 0 ? `${change}% dari kemarin` : 'Tidak berubah';
-    
-    return {
-      todayMargin,
-      yesterdayMargin,
-      changePercent: change,
-      changeText,
-      isPositive: change >= 0
-    };
-  }, [isAdminSuper, allTransactions, allReturns, allProducts, outletFilter]);
+  
+  const totalMarginCountUp = useCountUp(isAdminSuper ? dashboardMargin?.margin || 0 : 0, { duration: 1400 });
 
   // Helper for dynamic period label
   const getPeriodLabel = (prefix: string, isTodayDefault: string) => {
@@ -749,11 +544,11 @@ export default function DashboardPage() {
                     : <Users className="w-3 h-3 sm:w-4 sm:h-4 text-white" />}
                 </div>
               </div>
-              <p className="text-emerald-200 text-xs mt-3">
+                <p className="text-emerald-200 text-xs mt-3">
                 {isAdminSuper
                   ? (isLoadingMargin
                       ? 'Tidak berubah'
-                      : marginComparisonData.changeText)
+                      : dashboardMargin?.changeText || 'Tidak berubah')
                   : `+${stats?.newCustomersThisMonth || 0} ${stats?.isCustomDateRange ? 'di periode ini' : 'bulan ini'}`
                 }
               </p>
