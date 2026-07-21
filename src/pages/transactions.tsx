@@ -233,12 +233,25 @@ function TransactionReceiptDialog({
         discountPercent = Math.round((actualDiscount / totalOriginalPrice) * 100);
       }
 
-      const displayPrice = qty > 0 ? (subtotal / qty) : 0;
+      const displayPrice = qty > 0 ? (totalOriginalPrice / qty) : 0;
       
       const finalDisc1 = discountPercent > 0 ? discountPercent : globalDiscountPercent;
       const displayDisc1 = finalDisc1 > 0 ? finalDisc1 + '%' : '-';
       
       const displayDisc2 = adminDiscountPercent > 0 ? adminDiscountPercent + '%' : '-';
+
+      let finalItemSubtotal = totalOriginalPrice;
+      if (discountPercent > 0) {
+        finalItemSubtotal -= (totalOriginalPrice * discountPercent) / 100;
+        if (adminDiscountPercent > 0) {
+          finalItemSubtotal -= (finalItemSubtotal * adminDiscountPercent) / 100;
+        }
+      } else {
+        const totalDiscPct = globalDiscountPercent + adminDiscountPercent;
+        if (totalDiscPct > 0) {
+          finalItemSubtotal -= (totalOriginalPrice * totalDiscPct) / 100;
+        }
+      }
 
       return `
         <tr>
@@ -248,7 +261,7 @@ function TransactionReceiptDialog({
           <td style="text-align: right; color: #475569;">${formatRupiah(displayPrice)}</td>
           <td style="text-align: center; color: #475569;">${displayDisc1}</td>
           <td style="text-align: center; color: #475569;">${displayDisc2}</td>
-          <td style="text-align: right; font-weight: 700; color: #0f172a;">${formatRupiah(subtotal)}</td>
+          <td style="text-align: right; font-weight: 700; color: #0f172a;">${formatRupiah(finalItemSubtotal)}</td>
         </tr>`;
     }).join('') || '';
 
@@ -369,7 +382,7 @@ function TransactionReceiptDialog({
                   <th style="width: 39%; text-align: left;">Nama Produk</th>
                   <th style="width: 7%; text-align: center;">Qty</th>
                   <th style="width: 8%; text-align: center;">Satuan</th>
-                  <th style="width: 15%; text-align: right;">Harga</th>
+                  <th style="width: 15%; text-align: right;">Harga Satuan</th>
                   <th style="width: 8%; text-align: center;">Disc 1</th>
                   <th style="width: 8%; text-align: center;">Disc 2</th>
                   <th style="width: 15%; text-align: right;">Subtotal</th>
