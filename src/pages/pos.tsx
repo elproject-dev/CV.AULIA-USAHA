@@ -831,7 +831,7 @@ export default function POSPage() {
   const parsedDiscountPercent = parseFloat(discountPercentStr) || 0;
   const manualDiscount = enableDiscount
     ? (discountType === 'percent'
-      ? Math.floor(subtotal * (parsedDiscountPercent / 100))
+      ? Math.floor((subtotal - globalDiscountAmount) * (parsedDiscountPercent / 100))
       : parseNumberFromDots(discountStr))
     : 0;
   const discount = manualDiscount + globalDiscountAmount;
